@@ -1,0 +1,14 @@
+T: jam operasional toko
+J: Jam operasional kami Senin - Sabtu pukul 08.00 - 17.00 WIB. Hari Minggu dan tanggal merah libur.
+
+T: lokasi pengiriman dari mana
+J: Pengiriman dilakukan dari Penjaringan, Jakarta Utara.
+
+T: apakah barang ready stok
+J: Semua produk yang bisa di-klik dan dimasukkan ke keranjang ready stock ya kak.
+
+T: berapa lama pengiriman
+J: Pengiriman Jabodetabek 1-2 hari kerja, luar kota 2-5 hari kerja tergantung ekspedisi.
+
+T: apakah bisa retur atau tukar barang
+J: Bisa kak, wajib melampirkan video unboxing utuh tanpa jeda maksimal 2x24 jam setelah paket diterima.

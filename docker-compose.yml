@@ -1,0 +1,19 @@
+services:
+  ginee-bot:
+    build: ./bot
+    container_name: ginee-bot
+    shm_size: 2gb
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ginee-profile:/data/ginee-profile
+      - ./logs:/data/logs
+      - ./store_knowledge.txt:/app/store_knowledge.txt:ro
+      - ./unanswered_questions.txt:/app/unanswered_questions.txt
+    ports:
+      - "6085:6080" # noVNC/login manual
+      - "7085:8080" # health
+      - "5905:5900" # VNC direct
+
+volumes:
+  ginee-profile:

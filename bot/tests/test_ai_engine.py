@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 
 from bot import ai_engine
 from bot.state import bot_state
@@ -30,6 +31,34 @@ class TestAIEngine(unittest.TestCase):
             content = f.read()
             self.assertIn("Apa ada diskon?", content)
             self.assertIn("hash123", content)
+
+        if os.path.exists(test_path):
+            os.remove(test_path)
+
+    @patch("bot.ai_engine.call_ollama")
+    def test_generate_ai_reply_tidak_tahu(self, mock_call):
+        mock_call.return_value = "TIDAK_TAHU"
+        test_path = "/tmp/test_unanswered_tt.txt"
+        ai_engine.UNANSWERED_PATH = test_path
+        if os.path.exists(test_path):
+            os.remove(test_path)
+
+        reply = ai_engine.generate_ai_reply("Berapa berat paket ini?", "hash_tt", "store:tiktok")
+        self.assertEqual(reply, "")
+
+        if os.path.exists(test_path):
+            os.remove(test_path)
+
+    @patch("bot.ai_engine.call_ollama")
+    def test_generate_ai_reply_too_long(self, mock_call):
+        mock_call.return_value = "A" * 700
+        test_path = "/tmp/test_unanswered_long.txt"
+        ai_engine.UNANSWERED_PATH = test_path
+        if os.path.exists(test_path):
+            os.remove(test_path)
+
+        reply = ai_engine.generate_ai_reply("Tolong jelaskan secara detail", "hash_long", "store:tiktok")
+        self.assertEqual(reply, "")
 
         if os.path.exists(test_path):
             os.remove(test_path)

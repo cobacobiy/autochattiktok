@@ -33,12 +33,30 @@ docker compose up -d --build
 Buka browser dan akses `http://localhost:6085`. Selesaikan proses login akun Ginee secara manual. Sesi login akan tersimpan otomatis di persistent profile `/data/ginee-profile`.
 
 ### 4. Setup GitHub Actions Self-Hosted Runner (CI/CD)
-Untuk mendaftarkan runner otomatis pada server production:
+Untuk mendaftarkan runner otomatis pada server/mesin local:
+
+**Linux / Server Production:**
 1. Dapatkan token runner di `GitHub -> Settings -> Actions -> Runners -> New self-hosted runner`.
 2. Jalankan script setup runner:
 ```bash
 ./scripts/setup_github_runner.sh <YOUR_RUNNER_TOKEN>
 ```
+
+**Windows Host (Netbird Network - Staging):**
+
+*Jika menggunakan Command Prompt (CMD):*
+Ketik `powershell` terlebih dahulu untuk masuk ke mode PowerShell, atau jalankan langsung:
+```cmd
+curl -o setup_github_runner.ps1 https://raw.githubusercontent.com/cobacobiy/autochattiktok/main/scripts/setup_github_runner.ps1
+powershell -ExecutionPolicy Bypass -File .\setup_github_runner.ps1 -RunnerToken "<YOUR_RUNNER_TOKEN>"
+```
+
+*Jika menggunakan PowerShell (Run as Administrator):*
+```powershell
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/cobacobiy/autochattiktok/main/scripts/setup_github_runner.ps1 -OutFile setup_github_runner.ps1
+powershell -ExecutionPolicy Bypass -File .\setup_github_runner.ps1 -RunnerToken "<YOUR_RUNNER_TOKEN>"
+```
+*Catatan Netbird:* Pastikan service Netbird terhubung (`netbird status`). Runner Windows secara otomatis akan mendapat label `self-hosted,windows,staging,test,netbird,autochattiktok`.
 
 ### 5. Menjalankan Unit Test
 ```bash

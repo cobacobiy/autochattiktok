@@ -68,12 +68,12 @@ jobs:
           retention-days: 7
 
   # ============================================
-  # Job 3: Deploy Preview (HANYA saat PR)
+  # Job 3: Deploy Preview / Staging (HANYA saat PR ke branch main -> Run di Windows Runner)
   # ============================================
   deploy-preview:
     needs: package
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    runs-on: [self-hosted, test]
+    runs-on: [self-hosted, windows]
     steps:
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
@@ -89,7 +89,7 @@ jobs:
           import os
           import subprocess
 
-          print(f"Deploying PR #{os.environ.get('PR_NUMBER')} preview...")
+          print(f"Deploying PR #{os.environ.get('PR_NUMBER')} preview to Windows Staging...")
 
           # Hapus container preview lama jika ada
           subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
@@ -99,26 +99,27 @@ jobs:
               if not os.path.exists(filename):
                   open(filename, "w").close()
 
-          print("Building & starting preview container locally...")
+          print("Building & starting preview container locally on Windows...")
           subprocess.run(["docker", "compose", "up", "-d", "--build", "--remove-orphans"], check=True)
           subprocess.run(["docker", "image", "prune", "-f"], check=False)
 
-          print("\nPreview berhasil di-deploy menggunakan docker-compose!")
+          print("\nPreview berhasil di-deploy ke Windows Staging via docker-compose!")
 
   # ============================================
-  # Job 4: Cleanup Preview Container
+  # Job 4: Cleanup Preview Container (Windows Staging)
   # ============================================
   cleanup-preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    runs-on: [self-hosted, test]
+    runs-on: [self-hosted, windows]
     steps:
       - name: Stop Preview Container
         continue-on-error: true
-        shell: bash
+        shell: python
         run: |
-          echo "PR closed. Stopping preview container..."
-          docker rm -f ginee-bot-preview || true
-          docker compose down
+          import subprocess
+          print("PR closed. Stopping Windows preview container...")
+          subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
+          subprocess.run(["docker", "compose", "down"], stderr=subprocess.DEVNULL)
 
   # ============================================
   # Job 5: Deploy Production (HANYA push ke main)

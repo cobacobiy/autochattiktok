@@ -136,6 +136,9 @@ jobs:
 
       - name: Deploy to Production
         shell: bash
+        env:
+          GINEE_USERNAME: ${{ secrets.GINEE_USERNAME }}
+          GINEE_PASSWORD: ${{ secrets.GINEE_PASSWORD }}
         run: |
           TARGET_DIR="/home/gpu/actions-runner-autochat/runner-autochattiktok/autochattiktok"
 
@@ -146,6 +149,31 @@ jobs:
 
           [ -f "store_knowledge.txt" ] || touch "store_knowledge.txt"
           [ -f "unanswered_questions.txt" ] || touch "unanswered_questions.txt"
+
+          # Create or update .env from GitHub Secrets if provided
+          if [ -n "$GINEE_USERNAME" ] || [ ! -f ".env" ]; then
+            echo "Injecting .env configuration from GitHub Secrets..."
+            cat << EOF > .env
+GINEE_CHAT_URL=https://chat.ginee.com/
+PROFILE_DIR=/data/ginee-profile
+GINEE_USERNAME=${GINEE_USERNAME}
+GINEE_PASSWORD=${GINEE_PASSWORD}
+HEADLESS=false
+DRY_RUN=false
+POLL_INTERVAL=8
+BROWSER_LIFETIME=21600
+MAX_DAILY_REPLIES=5000
+MAX_CACHE_SIZE=1000
+LOG_DIR=/data/logs
+LOG_FORMAT=text
+KNOWLEDGE_PATH=/app/store_knowledge.txt
+UNANSWERED_PATH=/app/unanswered_questions.txt
+
+AI_PROVIDER=ollama
+OLLAMA_URL=http://ollama:11434
+OLLAMA_MODEL=qwen2.5:3b
+EOF
+          fi
 
           docker rm -f ginee-bot-preview || true
 

@@ -2,7 +2,11 @@ import logging
 import time
 
 from bot.ai_engine import generate_ai_reply
-from bot.config import DRY_RUN, MAX_DAILY_REPLIES
+from bot.config import (
+    DRY_RUN,
+    MAX_DAILY_REPLIES,
+    UNREPLIED_CHECK_INTERVAL_SECONDS,
+)
 from bot.ginee_navigation import (
     ensure_unified_chat_layout,
     select_filter_semua_pesan,
@@ -19,6 +23,8 @@ from bot.state import bot_state
 from bot.utils import do_human_delay
 
 log = logging.getLogger(__name__)
+
+_last_unreplied_filter_check_time = 0.0
 
 
 async def _process_conversations_in_current_view(page) -> int:
@@ -128,25 +134,32 @@ async def _process_conversations_in_current_view(page) -> int:
 
 
 async def process_unreplied_chats(page) -> int:
-    """Process chats in 2 passes: Pass 1 ('Belum Dibalas') -> Pass 2 ('Semua Pesan') -> Standby on 'Semua Pesan'."""
+    """Process chats: Standby on 'Semua Pesan', and check 'Belum Dibalas' filter once every 15 minutes."""
+    global _last_unreplied_filter_check_time
     if bot_state.daily_reply_counter >= MAX_DAILY_REPLIES:
         log.warning("Daily reply limit reached (%d)", MAX_DAILY_REPLIES)
         return 0
 
     await ensure_unified_chat_layout(page)
     total_processed = 0
+    now = time.time()
 
-    # --- Pass 1: Select "Belum Dibalas" and process unreplied chats ---
-    log.info("--- Pass 1: Switching filter to 'Belum Dibalas' ---")
-    await select_filter_unreplied(page)
-    processed_p1 = await _process_conversations_in_current_view(page)
-    total_processed += processed_p1
+    # --- Scheduled Check: Select "Belum Dibalas" only once every 15 minutes (900s) ---
+    if now - _last_unreplied_filter_check_time >= UNREPLIED_CHECK_INTERVAL_SECONDS or _last_unreplied_filter_check_time == 0.0:
+        log.info("--- Pass 1: Scheduled 15-minute check on 'Belum Dibalas' filter ---")
+        await select_filter_unreplied(page)
+        processed_p1 = await _process_conversations_in_current_view(page)
+        total_processed += processed_p1
+        _last_unreplied_filter_check_time = now
 
-    # --- Pass 2: Switch to "Semua Pesan" and process remaining chats ---
-    log.info("--- Pass 2: Switching filter to 'Semua Pesan' ---")
-    await select_filter_semua_pesan(page)
-    processed_p2 = await _process_conversations_in_current_view(page)
-    total_processed += processed_p2
+        log.info("--- Pass 2: Switching filter back to 'Semua Pesan' ---")
+        await select_filter_semua_pesan(page)
+        processed_p2 = await _process_conversations_in_current_view(page)
+        total_processed += processed_p2
+    else:
+        # Regular standby cycle on "Semua Pesan"
+        processed_p2 = await _process_conversations_in_current_view(page)
+        total_processed += processed_p2
 
-    log.info("Completed processing passes. Remaining on 'Semua Pesan' filter for new chat standby.")
+    log.debug("Completed processing cycle. Standby active on 'Semua Pesan' filter.")
     return total_processed

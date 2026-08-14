@@ -20,6 +20,7 @@ HEADLESS = _str2bool(os.getenv("HEADLESS", "false"), default=False)
 DRY_RUN = _str2bool(os.getenv("DRY_RUN", "true"), default=True)
 
 POLL_INTERVAL_SECONDS = max(3, int(os.getenv("POLL_INTERVAL", "8")))
+UNREPLIED_CHECK_INTERVAL_SECONDS = max(60, int(os.getenv("UNREPLIED_CHECK_INTERVAL", "900")))
 MAX_DAILY_REPLIES = max(1, int(os.getenv("MAX_DAILY_REPLIES", "500")))
 MAX_CACHE_SIZE = max(10, int(os.getenv("MAX_CACHE_SIZE", "1000")))
 

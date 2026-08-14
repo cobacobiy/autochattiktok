@@ -16,6 +16,8 @@ LOG_FORMAT = os.getenv("LOG_FORMAT", "text").lower()
 
 PROFILE_DIR = os.getenv("PROFILE_DIR", "/data/ginee-profile")
 GINEE_CHAT_URL = os.getenv("GINEE_CHAT_URL", "https://chat.ginee.com/")
+GINEE_USERNAME = os.getenv("GINEE_USERNAME", "")
+GINEE_PASSWORD = os.getenv("GINEE_PASSWORD", "")
 HEADLESS = _str2bool(os.getenv("HEADLESS", "false"), default=False)
 DRY_RUN = _str2bool(os.getenv("DRY_RUN", "true"), default=True)
 

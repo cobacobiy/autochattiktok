@@ -150,14 +150,16 @@ jobs:
           [ -f "store_knowledge.txt" ] || touch "store_knowledge.txt"
           [ -f "unanswered_questions.txt" ] || touch "unanswered_questions.txt"
 
-          # Create or update .env from GitHub Secrets if provided
-          if [ -n "$GINEE_USERNAME" ] || [ ! -f ".env" ]; then
-            echo "Injecting .env configuration from GitHub Secrets..."
-            cat << EOF > .env
+          # Ensure .env file always exists
+          if [ ! -f ".env" ]; then
+            if [ -f ".env.example" ]; then
+              cp .env.example .env
+            else
+              cat << EOF > .env
 GINEE_CHAT_URL=https://chat.ginee.com/
 PROFILE_DIR=/data/ginee-profile
-GINEE_USERNAME=${GINEE_USERNAME}
-GINEE_PASSWORD=${GINEE_PASSWORD}
+GINEE_USERNAME=
+GINEE_PASSWORD=
 HEADLESS=false
 DRY_RUN=false
 POLL_INTERVAL=8
@@ -173,9 +175,18 @@ AI_PROVIDER=ollama
 OLLAMA_URL=http://ollama:11434
 OLLAMA_MODEL=qwen2.5:3b
 EOF
+            fi
           fi
 
-          docker rm -f ginee-bot-preview || true
+          # Inject secrets into .env if present
+          if [ -n "$GINEE_USERNAME" ]; then
+            sed -i "s/^GINEE_USERNAME=.*/GINEE_USERNAME=$GINEE_USERNAME/" .env || echo "GINEE_USERNAME=$GINEE_USERNAME" >> .env
+          fi
+          if [ -n "$GINEE_PASSWORD" ]; then
+            sed -i "s/^GINEE_PASSWORD=.*/GINEE_PASSWORD=$GINEE_PASSWORD/" .env || echo "GINEE_PASSWORD=$GINEE_PASSWORD" >> .env
+          fi
+
+          docker rm -f ginee-bot-preview 2>/dev/null || true
 
           echo "Building & starting production container..."
           docker compose up -d --build --remove-orphans

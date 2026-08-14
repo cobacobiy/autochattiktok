@@ -32,7 +32,15 @@ docker compose up -d --build
 ### 3. Login Manual via noVNC
 Buka browser dan akses `http://localhost:6085`. Selesaikan proses login akun Ginee secara manual. Sesi login akan tersimpan otomatis di persistent profile `/data/ginee-profile`.
 
-### 4. Menjalankan Unit Test
+### 4. Setup GitHub Actions Self-Hosted Runner (CI/CD)
+Untuk mendaftarkan runner otomatis pada server production:
+1. Dapatkan token runner di `GitHub -> Settings -> Actions -> Runners -> New self-hosted runner`.
+2. Jalankan script setup runner:
+```bash
+./scripts/setup_github_runner.sh <YOUR_RUNNER_TOKEN>
+```
+
+### 5. Menjalankan Unit Test
 ```bash
 python -m unittest discover -s bot/tests -p "test_*.py"
 ```

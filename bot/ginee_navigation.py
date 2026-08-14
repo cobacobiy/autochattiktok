@@ -95,7 +95,7 @@ async def navigate_to_ginee_chat(page):
 
 
 async def auto_login_ginee(page) -> bool:
-    """Auto-fill and submit Ginee login form if GINEE_USERNAME and GINEE_PASSWORD are provided."""
+    """Auto-fill and submit Ginee login form with human-like delays if credentials exist."""
     from bot.config import GINEE_PASSWORD, GINEE_USERNAME
     if not GINEE_USERNAME or not GINEE_PASSWORD:
         return False
@@ -104,21 +104,29 @@ async def auto_login_ginee(page) -> bool:
     if "login" in url or "accounts" in url or "passport" in url:
         log.info("Attempting auto-login for user %s on %s", GINEE_USERNAME, page.url)
         try:
+            # Human pause before filling credentials
+            await do_human_delay(page, min_ms=1500, max_ms=3000)
+
             user_input = page.locator(
                 "input[type='text'], input[placeholder*='Email'], input[placeholder*='Telepon'], input[name*='email'], input[name*='username']"
             ).first
             if await user_input.is_visible(timeout=3000):
-                await user_input.fill(GINEE_USERNAME)
+                await user_input.click()
                 await page.wait_for_timeout(500)
+                await user_input.fill(GINEE_USERNAME)
+                await do_human_delay(page, min_ms=800, max_ms=1500)
 
             pass_input = page.locator("input[type='password'], input[name*='password']").first
             if await pass_input.is_visible(timeout=3000):
-                await pass_input.fill(GINEE_PASSWORD)
+                await pass_input.click()
                 await page.wait_for_timeout(500)
+                await pass_input.fill(GINEE_PASSWORD)
+                await do_human_delay(page, min_ms=1000, max_ms=2000)
 
             submit_btn = page.locator("button[type='submit'], button:has-text('Masuk'), button:has-text('Login')").first
             if await submit_btn.is_visible(timeout=3000):
                 await submit_btn.click()
+                log.info("Clicked login button. Waiting 5s for authentication redirect...")
                 await page.wait_for_timeout(5000)
                 await dismiss_ginee_popups(page)
                 return True

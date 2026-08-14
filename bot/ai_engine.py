@@ -2,7 +2,6 @@ import datetime
 import json
 import logging
 import os
-import re
 
 import httpx
 from tenacity import (
@@ -17,6 +16,7 @@ from bot.config import (
     ANTHROPIC_API_KEY,
     ANTHROPIC_MODEL,
     AUTO_REPLIES,
+    DEFAULT_REPLY,
     GEMINI_API_KEY,
     GEMINI_MODEL,
     MAX_AI_REPLY_LENGTH,
@@ -85,8 +85,8 @@ def _build_system_prompt() -> str:
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=6),
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=2, max=4),
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
     reraise=True,
 )
@@ -96,17 +96,18 @@ def call_ollama(prompt: str) -> str:
         "model": OLLAMA_MODEL,
         "prompt": f"{_build_system_prompt()}\n\nPembeli: {prompt}\nCS:",
         "stream": False,
+        "keep_alive": -1,
         "options": {"temperature": 0.2, "num_predict": 250},
     }
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=120.0) as client:
         resp = client.post(url, json=payload)
         resp.raise_for_status()
         return resp.json().get("response", "").strip()
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=6),
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=2, max=4),
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
     reraise=True,
 )
@@ -117,7 +118,7 @@ def call_gemini(prompt: str) -> str:
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 250},
     }
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=120.0) as client:
         resp = client.post(url, json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -130,8 +131,8 @@ def call_gemini(prompt: str) -> str:
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=6),
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=2, max=4),
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
     reraise=True,
 )
@@ -149,7 +150,7 @@ def call_claude(prompt: str) -> str:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
     }
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=120.0) as client:
         resp = client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -182,34 +183,33 @@ def generate_ai_reply(
             raw_response = call_claude(buyer_message)
         else:
             log.error("Unknown AI_PROVIDER: %s", AI_PROVIDER)
-            return ""
     except Exception as e:
         log.error("AI Provider call failed: %s", e)
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="AI_ERROR"
         )
-        return ""
+        return DEFAULT_REPLY
 
     response = raw_response.strip()
 
-    # Safety checks
+    # Safety & fallback checks
     if "TIDAK_TAHU" in response or not response:
-        log.info("AI returned TIDAK_TAHU or empty response")
+        log.info("AI returned TIDAK_TAHU or empty response, using DEFAULT_REPLY fallback")
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TIDAK_TAHU"
         )
-        return ""
+        return DEFAULT_REPLY
 
     if len(response) > MAX_AI_REPLY_LENGTH:
         log.warning(
-            "AI response exceeded max length (%d > %d)",
+            "AI response exceeded max length (%d > %d), using DEFAULT_REPLY fallback",
             len(response),
             MAX_AI_REPLY_LENGTH,
         )
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TOO_LONG"
         )
-        return ""
+        return DEFAULT_REPLY
 
     bot_state.daily_ai_replied_count += 1
     return response

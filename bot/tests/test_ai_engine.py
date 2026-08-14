@@ -44,7 +44,7 @@ class TestAIEngine(unittest.TestCase):
             os.remove(test_path)
 
         reply = ai_engine.generate_ai_reply("Berapa berat paket ini?", "hash_tt", "store:tiktok")
-        self.assertEqual(reply, "")
+        self.assertEqual(reply, ai_engine.DEFAULT_REPLY)
 
         if os.path.exists(test_path):
             os.remove(test_path)
@@ -58,7 +58,7 @@ class TestAIEngine(unittest.TestCase):
             os.remove(test_path)
 
         reply = ai_engine.generate_ai_reply("Tolong jelaskan secara detail", "hash_long", "store:tiktok")
-        self.assertEqual(reply, "")
+        self.assertEqual(reply, ai_engine.DEFAULT_REPLY)
 
         if os.path.exists(test_path):
             os.remove(test_path)

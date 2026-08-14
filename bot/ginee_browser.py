@@ -3,7 +3,11 @@ import time
 
 from bot.ai_engine import generate_ai_reply
 from bot.config import DRY_RUN, MAX_DAILY_REPLIES
-from bot.ginee_navigation import open_unreplied_tab
+from bot.ginee_navigation import (
+    ensure_unified_chat_layout,
+    select_filter_semua_pesan,
+    select_filter_unreplied,
+)
 from bot.ginee_parser import (
     build_conversation_hash,
     parse_chat_messages,
@@ -17,16 +21,11 @@ from bot.utils import do_human_delay
 log = logging.getLogger(__name__)
 
 
-async def process_unreplied_chats(page) -> int:
-    """Process top unreplied chat conversations."""
-    if bot_state.daily_reply_counter >= MAX_DAILY_REPLIES:
-        log.warning("Daily reply limit reached (%d)", MAX_DAILY_REPLIES)
-        return 0
-
-    await open_unreplied_tab(page)
+async def _process_conversations_in_current_view(page) -> int:
+    """Helper function to parse and process buyer chats in the active filter view."""
     conversations = await parse_conversation_list(page)
     if not conversations:
-        log.debug("No unreplied conversations found")
+        log.debug("No conversations found in current view")
         return 0
 
     processed_count = 0
@@ -37,7 +36,7 @@ async def process_unreplied_chats(page) -> int:
         try:
             log.info("Processing conversation: %r", conv)
             if conv.element:
-                await conv.element.click()
+                await conv.element.click(force=True)
                 await do_human_delay(page, min_ms=1500, max_ms=3000)
 
             messages = await parse_chat_messages(page)
@@ -99,3 +98,28 @@ async def process_unreplied_chats(page) -> int:
             log.error("Error processing conversation %s: %s", conv.conversation_id, e)
 
     return processed_count
+
+
+async def process_unreplied_chats(page) -> int:
+    """Process chats in 2 passes: Pass 1 ('Belum Dibalas') -> Pass 2 ('Semua Pesan') -> Standby on 'Semua Pesan'."""
+    if bot_state.daily_reply_counter >= MAX_DAILY_REPLIES:
+        log.warning("Daily reply limit reached (%d)", MAX_DAILY_REPLIES)
+        return 0
+
+    await ensure_unified_chat_layout(page)
+    total_processed = 0
+
+    # --- Pass 1: Select "Belum Dibalas" and process unreplied chats ---
+    log.info("--- Pass 1: Switching filter to 'Belum Dibalas' ---")
+    await select_filter_unreplied(page)
+    processed_p1 = await _process_conversations_in_current_view(page)
+    total_processed += processed_p1
+
+    # --- Pass 2: Switch to "Semua Pesan" and process remaining chats ---
+    log.info("--- Pass 2: Switching filter to 'Semua Pesan' ---")
+    await select_filter_semua_pesan(page)
+    processed_p2 = await _process_conversations_in_current_view(page)
+    total_processed += processed_p2
+
+    log.info("Completed processing passes. Remaining on 'Semua Pesan' filter for new chat standby.")
+    return total_processed

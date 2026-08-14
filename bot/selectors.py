@@ -6,28 +6,56 @@ log = logging.getLogger(__name__)
 # Fallback UI candidates for Ginee Chat UI
 ROOT_CONTAINER = ["#root", "#app", "main", "body"]
 
+POPUP_DISMISS_BUTTONS = [
+    "button:has-text('Tidak perlu')",
+    "span:has-text('Tidak perlu')",
+    "div:has-text('Tidak perlu')",
+    "text=Tidak perlu, saya sudah familiar dengan Ginee Chat",
+    "text=Tidak perlu",
+    ".ant-modal-close",
+]
+
+SEMUA_PESAN_TAB = [
+    ".ant-dropdown-menu-item:has-text('Semua Pesan')",
+    ".ant-menu-item:has-text('Semua Pesan')",
+    "li:has-text('Semua Pesan')",
+    "span:has-text('Semua Pesan')",
+    "div:has-text('Semua Pesan')",
+    "text=Semua Pesan",
+]
+
 UNREPLIED_TAB = [
-    {"role": "tab", "name": re.compile(r"Belum Dibalas|Unreplied", re.I)},
-    {"text": re.compile(r"Belum Dibalas|Unreplied", re.I)},
-    "div[data-testid='tab-unreplied']",
+    ".ant-dropdown-menu-item:has-text('Belum Dibalas')",
+    ".ant-menu-item:has-text('Belum Dibalas')",
+    "li:has-text('Belum Dibalas')",
     "span:has-text('Belum Dibalas')",
-    "span:has-text('Unreplied')",
+    "div:has-text('Belum Dibalas')",
+    "text=Belum Dibalas",
+]
+
+DROPDOWN_TRIGGER = [
+    ".ant-dropdown-trigger",
+    ".select-filter",
+    "div[class*='select-filter']",
 ]
 
 UNREAD_TAB = [
-    {"role": "tab", "name": re.compile(r"Belum Dibaca|Unread", re.I)},
-    {"text": re.compile(r"Belum Dibaca|Unread", re.I)},
+    ".ant-dropdown-menu-item:has-text('Belum Dibaca')",
+    ".ant-menu-item:has-text('Belum Dibaca')",
+    "li:has-text('Belum Dibaca')",
     "span:has-text('Belum Dibaca')",
-    "span:has-text('Unread')",
+    "div:has-text('Belum Dibaca')",
 ]
 
 CHAT_ITEM = [
+    ".ant-list-item:has(.ant-list-item-meta-description)",
+    "li.ant-list-item:has(.ant-list-item-meta-description)",
+    "li[class*='ant-list-item']:has(.ant-list-item-meta-description)",
     "[data-testid='conversation-item']",
     ".ginee-chat-item",
     ".conversation-item",
     "div[class*='chat-item']",
     "div[class*='conversationItem']",
-    "li[class*='chat-item']",
 ]
 
 CHAT_PANEL = [

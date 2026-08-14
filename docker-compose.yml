@@ -14,6 +14,14 @@ services:
       - "6085:6080" # noVNC/login manual
       - "7085:8080" # health
       - "5905:5900" # VNC direct
+    networks:
+      - default
 
 volumes:
   ginee-profile:
+
+networks:
+  default:
+    name: autochat_default
+    external: true
+

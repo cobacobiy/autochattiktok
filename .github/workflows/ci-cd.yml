@@ -1,0 +1,156 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  # ============================================
+  # Job 1: Lint & Validasi Python
+  # ============================================
+  validate:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify Python & Upgrade Pip
+        continue-on-error: true
+        run: |
+          python --version
+          python -m pip install --upgrade pip --break-system-packages
+
+      - name: Install Dependencies
+        continue-on-error: true
+        run: |
+          python -m pip install -r bot/requirements.txt --break-system-packages
+          python -m pip install pytest ruff --break-system-packages
+
+      - name: Validasi Kode (Lint)
+        continue-on-error: true
+        run: |
+          python -m ruff check bot/
+
+      - name: Jalankan Unit Tests
+        run: |
+          python -m pytest bot/tests/
+
+  # ============================================
+  # Job 2: Build & Upload Artifact Bawaan GitHub
+  # ============================================
+  package:
+    if: github.event.action != 'closed'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: |
+            bot/
+            docker-compose.yml
+            store_knowledge.txt
+            unanswered_questions.txt
+            .env.example
+          retention-days: 7
+
+  # ============================================
+  # Job 3: Deploy Preview (HANYA saat PR)
+  # ============================================
+  deploy-preview:
+    needs: package
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: [self-hosted, test]
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: ./
+
+      - name: Deploy Preview Container
+        shell: python
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          import os
+          import subprocess
+
+          print(f"Deploying PR #{os.environ.get('PR_NUMBER')} preview...")
+
+          # Hapus container preview lama jika ada
+          subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
+
+          files_to_create = ["store_knowledge.txt", "unanswered_questions.txt"]
+          for filename in files_to_create:
+              if not os.path.exists(filename):
+                  open(filename, "w").close()
+
+          print("Building & starting preview container locally...")
+          subprocess.run(["docker", "compose", "up", "-d", "--build", "--remove-orphans"], check=True)
+          subprocess.run(["docker", "image", "prune", "-f"], check=False)
+
+          print("\nPreview berhasil di-deploy menggunakan docker-compose!")
+
+  # ============================================
+  # Job 4: Cleanup Preview Container
+  # ============================================
+  cleanup-preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: [self-hosted, test]
+    steps:
+      - name: Stop Preview Container
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "PR closed. Stopping preview container..."
+          docker rm -f ginee-bot-preview || true
+          docker compose down
+
+  # ============================================
+  # Job 5: Deploy Production (HANYA push ke main)
+  # ============================================
+  deploy:
+    needs: package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, 226node2]
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: /home/gpu/actions-runner-autochat/runner-autochattiktok/autochattiktok
+
+      - name: Deploy to Production
+        shell: bash
+        run: |
+          TARGET_DIR="/home/gpu/actions-runner-autochat/runner-autochattiktok/autochattiktok"
+
+          echo "Deploying autochattiktok to production..."
+
+          mkdir -p "$TARGET_DIR"
+          cd "$TARGET_DIR"
+
+          [ -f "store_knowledge.txt" ] || touch "store_knowledge.txt"
+          [ -f "unanswered_questions.txt" ] || touch "unanswered_questions.txt"
+
+          docker rm -f ginee-bot-preview || true
+
+          echo "Building & starting production container..."
+          docker compose up -d --build --remove-orphans
+          docker image prune -f
+
+          echo -e "\nDeploy production selesai!\nnoVNC: http://<SERVER_IP>:6085"

@@ -72,13 +72,24 @@ async def parse_conversation_list(page) -> list[ConversationSummary]:
         if items:
             for item in items[:5]:
                 try:
-                    text = await item.inner_text()
-                    lines = [line.strip() for line in text.splitlines() if line.strip()]
-                    buyer_name = lines[0] if len(lines) > 0 else "unknown_buyer"
-                    store_name = lines[1] if len(lines) > 1 else "default_store"
-                    channel = lines[2] if len(lines) > 2 else "ginee"
-                    preview = lines[3] if len(lines) > 3 else ""
+                    title_el = item.locator(".ant-list-item-meta-title")
+                    buyer_name = (await title_el.inner_text()).strip() if await title_el.count() > 0 else ""
 
+                    desc_el = item.locator(".ant-list-item-meta-description")
+                    preview = (await desc_el.inner_text()).strip() if await desc_el.count() > 0 else ""
+
+                    shop_el = item.locator(".shop-name")
+                    store_name = (await shop_el.inner_text()).strip() if await shop_el.count() > 0 else "default_store"
+
+                    if not buyer_name:
+                        text = await item.inner_text()
+                        lines = [line.strip() for line in text.splitlines() if line.strip()]
+                        buyer_name = lines[0] if len(lines) > 0 else "unknown_buyer"
+                        if len(lines) > 1 and store_name == "default_store":
+                            store_name = lines[1]
+                        preview = lines[3] if len(lines) > 3 else (lines[2] if len(lines) > 2 else preview)
+
+                    channel = "ginee"
                     conv_id = (
                         await item.get_attribute("data-id")
                         or await item.get_attribute("id")
@@ -106,43 +117,37 @@ async def parse_conversation_list(page) -> list[ConversationSummary]:
 async def parse_chat_messages(page) -> list[ChatMessage]:
     """Parse recent chat messages from active chat panel."""
     messages = []
-    panel_loc = None
-    for cand in CHAT_PANEL:
-        loc = page.locator(cand).first
-        if await loc.is_visible(timeout=1000):
-            panel_loc = loc
-            break
-
-    scope = panel_loc if panel_loc else page
-
-    # Look for message bubbles
-    bubble_locs = await scope.locator(
-        "div[class*='bubble'], div[class*='message-item'], div[class*='msg-item']"
+    bubble_locs = await page.locator(
+        ".message-content, div[class*='message-content'], div[class*='bubble'], div[class*='message-item']"
     ).all()
+
     for loc in bubble_locs[-10:]:  # take last 10 messages
         try:
             text = (await loc.inner_text()).strip()
             if not text:
                 continue
 
-            cls = (await loc.get_attribute("class") or "").lower()
-            dir_attr = (
-                await loc.get_attribute("data-direction") or ""
-            ).lower()
+            style = (await loc.get_attribute("style") or "").lower()
+            parent_style = ""
+            try:
+                parent_style = (await loc.locator("xpath=..").get_attribute("style") or "").lower()
+            except Exception:
+                pass
 
-            if dir_attr == "buyer" or "left" in cls or "buyer" in cls:
+            grandparent_style = ""
+            try:
+                grandparent_style = (await loc.locator("xpath=../..").get_attribute("style") or "").lower()
+            except Exception:
+                pass
+
+            combined_style = f"{style} {parent_style} {grandparent_style}"
+
+            if "flex-start" in combined_style or "242, 245, 247" in combined_style:
                 direction = "buyer"
-            elif (
-                dir_attr == "seller"
-                or "right" in cls
-                or "seller" in cls
-                or is_assistant_ai_msg(text)
-            ):
+            elif "flex-end" in combined_style or "238, 237, 254" in combined_style or is_assistant_ai_msg(text):
                 direction = "seller"
-            elif "system" in cls or "notice" in cls:
-                direction = "system"
             else:
-                direction = "unknown"
+                direction = "buyer"
 
             msg_id = await loc.get_attribute("data-msg-id")
 

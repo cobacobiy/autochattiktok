@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 async def _process_conversations_in_current_view(page) -> int:
-    """Helper function to parse and process buyer chats in the active filter view."""
+    """Helper function to parse and process buyer chats in active filter view without unnecessary clicking."""
     conversations = await parse_conversation_list(page)
     if not conversations:
         log.debug("No conversations found in current view")
@@ -33,8 +33,16 @@ async def _process_conversations_in_current_view(page) -> int:
         if bot_state.daily_reply_counter >= MAX_DAILY_REPLIES:
             break
 
+        # Check preliminary hash from list view preview BEFORE clicking
+        prelim_hash = build_conversation_hash(
+            conv.store_name, conv.channel, conv.conversation_id, conv.preview
+        )
+        if prelim_hash in bot_state.replied_cache:
+            log.debug("Skipping click for %s: preliminary snippet already in cache", conv.buyer_name)
+            continue
+
         try:
-            log.info("Processing conversation: %r", conv)
+            log.info("Processing buyer conversation: %r", conv)
             if conv.element:
                 await conv.element.click(force=True)
                 await do_human_delay(page, min_ms=1500, max_ms=3000)
@@ -42,6 +50,7 @@ async def _process_conversations_in_current_view(page) -> int:
             messages = await parse_chat_messages(page)
             if not messages:
                 log.info("No messages found in detail panel for %s", conv.conversation_id)
+                bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
             last_msg = messages[-1]
@@ -50,6 +59,7 @@ async def _process_conversations_in_current_view(page) -> int:
                     "Skipping: Last message is not from buyer (direction=%s)",
                     last_msg.direction,
                 )
+                bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
             # Check skip rules (ack, admin keywords)
@@ -57,6 +67,7 @@ async def _process_conversations_in_current_view(page) -> int:
             if skip:
                 log.info("Skipping buyer message (%s): '%s'", reason, last_msg.text)
                 bot_state.daily_skip_count += 1
+                bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
             # Deduplication key check
@@ -65,6 +76,7 @@ async def _process_conversations_in_current_view(page) -> int:
             )
             if conv_hash in bot_state.replied_cache:
                 log.info("Skipping: Conversation key already in replied cache")
+                bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
             # Compile all recent buyer requests and full chat thread context
@@ -89,18 +101,21 @@ async def _process_conversations_in_current_view(page) -> int:
 
             if not reply_text:
                 log.info("AI did not yield a valid reply text")
+                bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
             # Double check before sending: re-parse last message
             recent_msgs = await parse_chat_messages(page)
             if recent_msgs and recent_msgs[-1].direction != "buyer":
                 log.warning("Abort send: Seller or system replied since initial snapshot")
+                bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
             # Send reply
             success = await send_ginee_reply(page, reply_text)
             if success:
                 bot_state.replied_cache[conv_hash] = time.time()
+                bot_state.replied_cache[prelim_hash] = time.time()
                 if not DRY_RUN:
                     bot_state.daily_reply_counter += 1
                 processed_count += 1

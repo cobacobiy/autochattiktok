@@ -94,7 +94,7 @@ def call_ollama(prompt: str) -> str:
     url = f"{OLLAMA_URL}/api/generate"
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": f"{_build_system_prompt()}\n\nPembeli: {prompt}\nCS:",
+        "prompt": f"{_build_system_prompt()}\n\nRiwayat Percakapan Chat:\n{prompt}\n\nJawaban CS:",
         "stream": False,
         "keep_alive": -1,
         "options": {"temperature": 0.2, "num_predict": 250},
@@ -183,33 +183,37 @@ def generate_ai_reply(
             raw_response = call_claude(buyer_message)
         else:
             log.error("Unknown AI_PROVIDER: %s", AI_PROVIDER)
+            return ""
     except Exception as e:
         log.error("AI Provider call failed: %s", e)
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="AI_ERROR"
         )
-        return DEFAULT_REPLY
+        return ""
 
     response = raw_response.strip()
+    for prefix in ["Jawaban CS:", "CS:", "Jawaban:"]:
+        if response.startswith(prefix):
+            response = response[len(prefix):].strip()
 
-    # Safety & fallback checks
+    # Safety checks: Strict TIDAK_TAHU enforcement
     if "TIDAK_TAHU" in response or not response:
-        log.info("AI returned TIDAK_TAHU or empty response, using DEFAULT_REPLY fallback")
+        log.info("AI returned TIDAK_TAHU or empty response")
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TIDAK_TAHU"
         )
-        return DEFAULT_REPLY
+        return ""
 
     if len(response) > MAX_AI_REPLY_LENGTH:
         log.warning(
-            "AI response exceeded max length (%d > %d), using DEFAULT_REPLY fallback",
+            "AI response exceeded max length (%d > %d)",
             len(response),
             MAX_AI_REPLY_LENGTH,
         )
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TOO_LONG"
         )
-        return DEFAULT_REPLY
+        return ""
 
     bot_state.daily_ai_replied_count += 1
     return response

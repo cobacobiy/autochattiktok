@@ -67,10 +67,22 @@ async def _process_conversations_in_current_view(page) -> int:
                 log.info("Skipping: Conversation key already in replied cache")
                 continue
 
+            # Compile all recent buyer requests and full chat thread context
+            buyer_requests = [m.text for m in messages[-10:] if m.direction == "buyer" and m.text.strip()]
+            chat_history_lines = []
+            for msg in messages[-8:]:
+                role = "Pembeli" if msg.direction == "buyer" else "CS"
+                chat_history_lines.append(f"{role}: {msg.text}")
+
+            prompt_context = (
+                f"Permintaan Pembeli: {' | '.join(buyer_requests)}\n\n"
+                "Riwayat Chat:\n" + "\n".join(chat_history_lines)
+            )
+
             # Generate AI reply
             store_channel_info = f"{conv.store_name}:{conv.channel}"
             reply_text = generate_ai_reply(
-                last_msg.text,
+                prompt_context,
                 conversation_hash=conv_hash,
                 store_channel=store_channel_info,
             )

@@ -6,9 +6,11 @@ from bot.config import (
     CACHE_EXPIRY_SECONDS,
     DRY_RUN,
     MAX_DAILY_REPLIES,
+    UNREPLIED_CHECK_INTERVAL_SECONDS,
 )
 from bot.ginee_navigation import (
     ensure_unified_chat_layout,
+    select_filter_semua_pesan,
     select_filter_unreplied,
 )
 from bot.ginee_parser import (
@@ -161,7 +163,7 @@ async def _process_conversations_in_current_view(page) -> int:
 
 
 async def process_unreplied_chats(page) -> int:
-    """Process chats: Always work from 'Belum Dibalas' filter only."""
+    """Process chats: Standby on 'Semua Pesan', and check 'Belum Dibalas' filter once every 15 minutes."""
 
     if bot_state.daily_reply_counter >= MAX_DAILY_REPLIES:
         log.warning("Daily reply limit reached (%d)", MAX_DAILY_REPLIES)
@@ -175,13 +177,24 @@ async def process_unreplied_chats(page) -> int:
         await ensure_unified_chat_layout(page)
         bot_state.last_layout_check = now
 
-    # Selalu bekerja dari filter "Belum Dibalas"
-    filter_ok = await select_filter_unreplied(page)
-    if not filter_ok:
-        log.warning("Failed to select 'Belum Dibalas' filter — skipping this cycle")
-        return 0
+    total_processed = 0
 
-    total_processed = await _process_conversations_in_current_view(page)
+    # --- Scheduled Check: Select "Belum Dibalas" only once every 15 minutes (900s) ---
+    if now - bot_state.last_unreplied_filter_check >= UNREPLIED_CHECK_INTERVAL_SECONDS or bot_state.last_unreplied_filter_check == 0.0:
+        log.info("--- Pass 1: Scheduled 15-minute check on 'Belum Dibalas' filter ---")
+        await select_filter_unreplied(page)
+        processed_p1 = await _process_conversations_in_current_view(page)
+        total_processed += processed_p1
+        bot_state.last_unreplied_filter_check = now
 
-    log.debug("Completed processing cycle on 'Belum Dibalas' filter. Processed: %d", total_processed)
+        log.info("--- Pass 2: Switching filter back to 'Semua Pesan' ---")
+        await select_filter_semua_pesan(page)
+        processed_p2 = await _process_conversations_in_current_view(page)
+        total_processed += processed_p2
+    else:
+        # Regular standby cycle on "Semua Pesan"
+        processed_p2 = await _process_conversations_in_current_view(page)
+        total_processed += processed_p2
+
+    log.debug("Completed processing cycle. Standby active on 'Semua Pesan' filter.")
     return total_processed

@@ -53,14 +53,7 @@ MAX_AI_REPLY_LENGTH = 600
 
 DEFAULT_REPLY = os.getenv("DEFAULT_REPLY", "Ada yang bisa dibantu?")
 
-AUTO_REPLIES = {
-    "harga": "Harga sudah tertera di halaman produk. Silakan cek produk kami ya kak 😊",
-    "stok": "Stok produk masih tersedia, silakan diorder kak!",
-    "ongkir": "Ongkir dihitung otomatis oleh sistem sesuai dengan alamat lokasi pengiriman.",
-    "garansi": "Produk bergaransi sesuai syarat dan ketentuan garansi toko kami.",
-    "pengiriman": "Pengiriman dilakukan dari Penjaringan, Jakarta Utara.",
-    "dari mana": "Pengiriman dari Penjaringan, Jakarta Utara.",
-}
+AUTO_REPLIES = {}
 
 SKIP_MESSAGES = {
     "ok", "oke", "baik", "baik kak", "baik ka", "oke kak", "oke ka",

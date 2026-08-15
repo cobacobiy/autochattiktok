@@ -18,3 +18,12 @@ J: Baik kak, akan segera kami cek ya. Terima kasih!
 
 T: pesan ini tidak didukung untuk saat ini, silakan buka dashboard platform untuk melihat pesan ini
 J: Halo kak, ada yang bisa dibantu? Mohon ketik ulang pertanyaannya di sini ya kak, karena pesan sebelumnya tidak terbaca oleh sistem kami.
+
+T: berapa harganya / harga produk
+J: Harga sudah tertera di halaman produk. Silakan cek produk kami ya kak 😊
+
+T: ongkir / ongkos kirim berapa
+J: Ongkir dihitung otomatis oleh sistem sesuai dengan alamat lokasi pengiriman.
+
+T: kirim dari mana / pengiriman dari mana
+J: Pengiriman dilakukan dari Penjaringan, Jakarta Utara.

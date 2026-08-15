@@ -16,7 +16,6 @@ from bot.config import (
     AI_PROVIDER,
     ANTHROPIC_API_KEY,
     ANTHROPIC_MODEL,
-    AUTO_REPLIES,
     DEFAULT_REPLY,
     GEMINI_API_KEY,
     GEMINI_MODEL,
@@ -46,10 +45,6 @@ def get_auto_reply(message: str) -> str:
     msg = message.lower().strip()
     if not msg:
         return ""
-        
-    for key, reply in AUTO_REPLIES.items():
-        if key in msg:
-            return reply
             
     for q, a in bot_state.knowledge_answers.items():
         # Match if the question is in the buyer message

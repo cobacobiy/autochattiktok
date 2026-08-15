@@ -126,24 +126,40 @@ jobs:
           $envContent | Set-Content .env
 
           Write-Output "Building & starting preview container locally on Windows..."
-          $sharedOllamaValid = $false
-          $ollamaRunning = (docker inspect -f '{{.State.Running}}' ollama 2>$null) -eq "true"
-          if ($ollamaRunning) {
-              $networks = docker inspect -f '{{json .NetworkSettings.Networks}}' ollama 2>$null
-              $hasNetwork = $networks -like '*autochat_default*'
-              if ($hasNetwork) {
-                  $models = docker exec ollama ollama list 2>$null
-                  if ($models -like '*qwen2.5:3b*') {
-                      $sharedOllamaValid = $true
-                  }
-              }
+          docker network create autochat_default 2>&1 | Out-Null
+
+          $ollamaExists = $false
+          try {
+              $null = docker inspect ollama 2>$null
+              if ($LASTEXITCODE -eq 0) { $ollamaExists = $true }
+          } catch {
+              $ollamaExists = $false
           }
 
-          if ($sharedOllamaValid) {
-              Write-Output "Shared Ollama is running, connected to autochat_default, and model qwen2.5:3b is available. Using shared configuration."
+          if ($ollamaExists) {
+              Write-Output "Container 'ollama' exists. Preparing shared Ollama instance..."
+              $isRunning = (docker inspect -f '{{.State.Running}}' ollama 2>$null) -eq "true"
+              if (-not $isRunning) {
+                  Write-Output "Starting existing 'ollama' container..."
+                  docker start ollama 2>&1 | Out-Null
+              }
+
+              $networks = docker inspect -f '{{json .NetworkSettings.Networks}}' ollama 2>$null
+              if ($networks -notlike '*autochat_default*') {
+                  Write-Output "Connecting 'ollama' container to autochat_default network..."
+                  docker network connect autochat_default ollama 2>&1 | Out-Null
+              }
+
+              $models = docker exec ollama ollama list 2>$null
+              if ($models -notlike '*qwen2.5:3b*') {
+                  Write-Output "Pulling qwen2.5:3b model into existing 'ollama' container..."
+                  docker exec ollama ollama pull qwen2.5:3b
+              }
+
+              Write-Output "Shared Ollama is ready. Deploying with docker-compose.yml..."
               docker compose -f docker-compose.yml up -d --build --remove-orphans
           } else {
-              Write-Output "Shared Ollama requirements not met. Starting standalone configuration with Ollama."
+              Write-Output "No existing 'ollama' container found. Starting standalone configuration with Ollama..."
               docker compose -f docker-compose.standalone.yml up -d --build --remove-orphans
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -222,15 +238,34 @@ jobs:
           docker rm -f ginee-bot 2>/dev/null || true
 
           echo "Building & starting production container..."
-          IS_RUNNING=$(docker inspect -f '{{.State.Running}}' ollama 2>/dev/null || echo "false")
-          HAS_NET=$(docker inspect -f '{{json .NetworkSettings.Networks}}' ollama 2>/dev/null | grep -q "autochat_default" && echo "true" || echo "false")
-          HAS_MODEL=$(docker exec ollama ollama list 2>/dev/null | grep -q "qwen2.5:3b" && echo "true" || echo "false")
+          docker network create autochat_default 2>/dev/null || true
 
-          if [ "$IS_RUNNING" = "true" ] && [ "$HAS_NET" = "true" ] && [ "$HAS_MODEL" = "true" ]; then
-              echo "Shared Ollama is running, connected to autochat_default, and model qwen2.5:3b is available. Using shared configuration."
+          if docker inspect ollama >/dev/null 2>&1; then
+              echo "Container 'ollama' exists. Preparing shared Ollama instance..."
+              IS_RUNNING=$(docker inspect -f '{{.State.Running}}' ollama 2>/dev/null || echo "false")
+              if [ "$IS_RUNNING" != "true" ]; then
+                  echo "Starting existing 'ollama' container..."
+                  docker start ollama
+              fi
+
+              if docker inspect -f '{{json .NetworkSettings.Networks}}' ollama 2>/dev/null | grep "autochat_default" >/dev/null 2>&1; then
+                  echo "Ollama is already connected to autochat_default network."
+              else
+                  echo "Connecting 'ollama' container to autochat_default network..."
+                  docker network connect autochat_default ollama 2>/dev/null || true
+              fi
+
+              if docker exec ollama ollama list 2>/dev/null | grep "qwen2.5:3b" >/dev/null 2>&1; then
+                  echo "Model qwen2.5:3b is already available in Ollama."
+              else
+                  echo "Pulling qwen2.5:3b model into existing 'ollama' container..."
+                  docker exec ollama ollama pull qwen2.5:3b
+              fi
+
+              echo "Shared Ollama is ready. Deploying with docker-compose.yml..."
               docker compose -f docker-compose.yml up -d --build --remove-orphans
           else
-              echo "Shared Ollama requirements not met. Starting standalone configuration with Ollama."
+              echo "No existing 'ollama' container found. Starting standalone configuration with Ollama..."
               docker compose -f docker-compose.standalone.yml up -d --build --remove-orphans
           fi
           docker image prune -f

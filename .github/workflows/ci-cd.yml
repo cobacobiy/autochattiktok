@@ -102,7 +102,7 @@ jobs:
           Write-Output "Deploying PR #$env:PR_NUMBER preview to Windows Staging..."
 
           # Hapus container preview lama jika ada
-          docker rm -f ginee-bot-preview 2>&1 | Out-Null
+          docker rm -f ginee-bot 2>&1 | Out-Null
 
           $files = "store_knowledge.txt", "unanswered_questions.txt"
           foreach ($file in $files) {
@@ -126,12 +126,24 @@ jobs:
           $envContent | Set-Content .env
 
           Write-Output "Building & starting preview container locally on Windows..."
-          $ollamaExists = docker ps -a --format '{{.Names}}' | Select-String -Pattern "^ollama$"
-          if ($ollamaExists) {
-              Write-Output "Ollama is already running. Using shared configuration."
+          $sharedOllamaValid = $false
+          $ollamaRunning = (docker inspect -f '{{.State.Running}}' ollama 2>$null) -eq "true"
+          if ($ollamaRunning) {
+              $networks = docker inspect -f '{{json .NetworkSettings.Networks}}' ollama 2>$null
+              $hasNetwork = $networks -like '*autochat_default*'
+              if ($hasNetwork) {
+                  $models = docker exec ollama ollama list 2>$null
+                  if ($models -like '*qwen2.5:3b*') {
+                      $sharedOllamaValid = $true
+                  }
+              }
+          }
+
+          if ($sharedOllamaValid) {
+              Write-Output "Shared Ollama is running, connected to autochat_default, and model qwen2.5:3b is available. Using shared configuration."
               docker compose -f docker-compose.yml up -d --build --remove-orphans
           } else {
-              Write-Output "Ollama is not running. Starting standalone configuration with Ollama."
+              Write-Output "Shared Ollama requirements not met. Starting standalone configuration with Ollama."
               docker compose -f docker-compose.standalone.yml up -d --build --remove-orphans
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -147,12 +159,18 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: [self-hosted, windows]
     steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: ./
+
       - name: Stop Preview Container
         continue-on-error: true
         shell: powershell
         run: |
           Write-Output "PR closed. Stopping Windows preview container..."
-          docker rm -f ginee-bot-preview 2>&1 | Out-Null
+          docker rm -f ginee-bot 2>&1 | Out-Null
           docker compose down 2>&1 | Out-Null
 
   # ============================================
@@ -201,14 +219,18 @@ jobs:
           # Force DRY_RUN=false for production
           sed -i "s/^DRY_RUN=.*/DRY_RUN=false/" .env || echo "DRY_RUN=false" >> .env
 
-          docker rm -f ginee-bot-preview 2>/dev/null || true
+          docker rm -f ginee-bot 2>/dev/null || true
 
           echo "Building & starting production container..."
-          if docker ps -a --format '{{.Names}}' | grep -Eq "^ollama$"; then
-              echo "Ollama is already running. Using shared configuration."
+          IS_RUNNING=$(docker inspect -f '{{.State.Running}}' ollama 2>/dev/null || echo "false")
+          HAS_NET=$(docker inspect -f '{{json .NetworkSettings.Networks}}' ollama 2>/dev/null | grep -q "autochat_default" && echo "true" || echo "false")
+          HAS_MODEL=$(docker exec ollama ollama list 2>/dev/null | grep -q "qwen2.5:3b" && echo "true" || echo "false")
+
+          if [ "$IS_RUNNING" = "true" ] && [ "$HAS_NET" = "true" ] && [ "$HAS_MODEL" = "true" ]; then
+              echo "Shared Ollama is running, connected to autochat_default, and model qwen2.5:3b is available. Using shared configuration."
               docker compose -f docker-compose.yml up -d --build --remove-orphans
           else
-              echo "Ollama is not running. Starting standalone configuration with Ollama."
+              echo "Shared Ollama requirements not met. Starting standalone configuration with Ollama."
               docker compose -f docker-compose.standalone.yml up -d --build --remove-orphans
           fi
           docker image prune -f

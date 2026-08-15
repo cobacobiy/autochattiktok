@@ -4,7 +4,7 @@ Aplikasi balasan otomatis berbasis AI untuk [Ginee Chat](https://chat.ginee.com/
 
 ## Fitur Utama
 
-- **Navigasi Antrean Unreplied**: Hanya memproses percakapan yang belum dibalas (`Belum Dibalas` / `Unreplied`).
+- **Standby & Navigasi Filter Chat**: Memakai filter `Semua Pesan` sebagai CS utama secara kontinu dan melakukan pengecekan berkala ke filter `Belum Dibalas` (setiap 15 menit).
 - **Deduplikasi & Race Protection**: Menjamin maksimal 1 balasan per percakapan pembeli.
 - **Support AI Multi-Provider**: Menggunakan Ollama (default), Google Gemini, atau Anthropic Claude.
 - **Safety Mode (`DRY_RUN=true`)**: Bot secara default hanya melakukan prediksi & pembuatan draft tanpa menekan tombol kirim.

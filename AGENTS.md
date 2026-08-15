@@ -26,8 +26,9 @@ This application provides intelligent automated responses for Ginee Chat (`chat.
 - **Hardcoded Config**: `SKIP_MESSAGES` (set pesan yang di-skip, e.g. "ok", "makasih") dan `ADMIN_KEYWORDS` (keyword yang memerlukan penanganan admin, e.g. "gojek", "grab", "sameday") didefinisikan di `bot/config.py`.
 
 ## Critical Operational Rules
-1. **Unreplied Queue Focus**:
-   - Process only conversations in the `Belum Dibalas` / `Unreplied` filter to avoid duplicate messages.
+1. **Chat Queue & Standby Mode (`Semua Pesan` / `Belum Dibalas`)**:
+   - Primary CS standby mode operates on the `Semua Pesan` (All Messages) filter to handle incoming customer threads continuously.
+   - Periodically checks the `Belum Dibalas` (Unreplied) filter (every 15 minutes) before returning to `Semua Pesan`.
 2. **Race Protection & Deduplication**:
    - Maintain state locks to guarantee at most 1 reply per buyer thread across iterations.
 3. **Safety Mode (`DRY_RUN`)**:

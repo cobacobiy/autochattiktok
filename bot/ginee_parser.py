@@ -157,7 +157,7 @@ async def parse_chat_messages(page) -> list[ChatMessage]:
             elif "flex-end" in combined_style or "238, 237, 254" in combined_style:
                 direction = "seller"
             else:
-                direction = "buyer"
+                direction = "unknown"
 
             msg_id = await loc.get_attribute("data-msg-id")
 

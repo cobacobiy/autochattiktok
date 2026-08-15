@@ -54,6 +54,16 @@ docker compose up -d --build
 ### 3. Login Manual via noVNC
 Buka browser dan akses `http://localhost:6085`. Selesaikan proses login akun Ginee secara manual. Sesi login akan tersimpan otomatis di persistent profile `/data/ginee-profile`.
 
+## Informasi Port Service
+
+| Service | Port Host | Port Internal Container |
+|---------|-----------|------------------------|
+| noVNC Web Interface | `6085` | `6080` |
+| Health API Status | `7085` | `8080` |
+| VNC Direct Port | `5905` | `5900` |
+
+> *Catatan: Gunakan Port Host untuk mengakses service dari luar.*
+
 
 ### 4. Setup GitHub Actions Self-Hosted Runner (CI/CD)
 Untuk mendaftarkan runner otomatis pada server/mesin local:

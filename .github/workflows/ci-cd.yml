@@ -71,6 +71,7 @@ jobs:
           path: |
             bot/
             docker-compose.yml
+            docker-compose.standalone.yml
             store_knowledge.txt
             unanswered_questions.txt
             .env.example
@@ -196,6 +197,9 @@ jobs:
           if [ -n "$GINEE_PASSWORD" ]; then
             sed -i "s/^GINEE_PASSWORD=.*/GINEE_PASSWORD=$GINEE_PASSWORD/" .env || echo "GINEE_PASSWORD=$GINEE_PASSWORD" >> .env
           fi
+
+          # Force DRY_RUN=false for production
+          sed -i "s/^DRY_RUN=.*/DRY_RUN=false/" .env || echo "DRY_RUN=false" >> .env
 
           docker rm -f ginee-bot-preview 2>/dev/null || true
 

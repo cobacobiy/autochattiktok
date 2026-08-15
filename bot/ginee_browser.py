@@ -3,7 +3,10 @@ import time
 
 from bot.ai_engine import generate_ai_reply
 from bot.config import (
+    CACHE_EXPIRY_SECONDS,
+    DEFAULT_REPLY,
     DRY_RUN,
+    FAILED_CACHE_EXPIRY_SECONDS,
     MAX_DAILY_REPLIES,
     UNREPLIED_CHECK_INTERVAL_SECONDS,
 )
@@ -62,25 +65,31 @@ async def _process_conversations_in_current_view(page) -> int:
 
             if not messages:
                 log.info("No messages found in detail panel for %s after retries", conv.conversation_id)
-                bot_state.replied_cache[prelim_hash] = time.time()
+                bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY_SECONDS)
                 continue
 
             # Ignore any trailing auto-reply messages
             while messages and messages[-1].direction == "auto_reply":
                 messages.pop()
 
+            unknown_count = sum(1 for m in messages if m.direction == "unknown")
+            if messages and unknown_count > len(messages) * 0.5:
+                log.warning("More than 50%% messages are 'unknown' direction — DOM may have changed. Skipping.")
+                bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY_SECONDS)
+                continue
+
             if not messages:
                 log.info("All messages were auto-replies, skipping.")
-                bot_state.replied_cache[prelim_hash] = time.time()
+                bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY_SECONDS)
                 continue
 
             last_msg = messages[-1]
-            if last_msg.direction != "buyer":
+            if last_msg.direction in ("seller", "auto_reply"):
                 log.info(
-                    "Skipping: Last message is not from buyer (direction=%s)",
+                    "Skipping: Last message is from seller/auto_reply (direction=%s)",
                     last_msg.direction,
                 )
-                bot_state.replied_cache[prelim_hash] = time.time()
+                bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY_SECONDS)
                 continue
 
             # Check skip rules (ack, admin keywords)
@@ -101,10 +110,13 @@ async def _process_conversations_in_current_view(page) -> int:
                 continue
 
             # Compile all recent buyer requests and full chat thread context
-            buyer_requests = [m.text for m in messages[-10:] if m.direction == "buyer" and m.text.strip()]
+            buyer_requests = [m.text for m in messages[-10:] if m.direction not in ("seller", "auto_reply") and m.text.strip()]
             chat_history_lines = []
             for msg in messages[-8:]:
-                role = "Pembeli" if msg.direction == "buyer" else "CS"
+                if msg.direction in ("seller", "auto_reply"):
+                    role = "CS"
+                else:
+                    role = "Pembeli"
                 chat_history_lines.append(f"{role}: {msg.text}")
 
             prompt_context = (
@@ -122,18 +134,17 @@ async def _process_conversations_in_current_view(page) -> int:
             )
 
             if not reply_text:
-                log.info("AI did not yield a valid reply text")
-                bot_state.replied_cache[prelim_hash] = time.time()
-                continue
+                log.warning("AI returned empty reply (unexpected). Falling back to DEFAULT_REPLY.")
+                reply_text = DEFAULT_REPLY
 
             # Double check before sending: re-parse last message
             recent_msgs = await parse_chat_messages(page)
             while recent_msgs and recent_msgs[-1].direction == "auto_reply":
                 recent_msgs.pop()
 
-            if recent_msgs and recent_msgs[-1].direction != "buyer":
-                log.warning("Abort send: Seller replied since initial snapshot")
-                bot_state.replied_cache[prelim_hash] = time.time()
+            if recent_msgs and recent_msgs[-1].direction in ("seller", "auto_reply"):
+                log.warning("Abort send: Seller/auto-reply detected since initial snapshot")
+                bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY_SECONDS)
                 continue
 
             # Send reply
@@ -172,13 +183,17 @@ async def process_unreplied_chats(page) -> int:
     # --- Scheduled Check: Select "Belum Dibalas" only once every 15 minutes (900s) ---
     if now - bot_state.last_unreplied_filter_check >= UNREPLIED_CHECK_INTERVAL_SECONDS or bot_state.last_unreplied_filter_check == 0.0:
         log.info("--- Pass 1: Scheduled 15-minute check on 'Belum Dibalas' filter ---")
-        await select_filter_unreplied(page)
+        filter_ok = await select_filter_unreplied(page)
+        if not filter_ok:
+            log.warning("Failed to switch to 'Belum Dibalas' filter")
         processed_p1 = await _process_conversations_in_current_view(page)
         total_processed += processed_p1
         bot_state.last_unreplied_filter_check = now
 
         log.info("--- Pass 2: Switching filter back to 'Semua Pesan' ---")
-        await select_filter_semua_pesan(page)
+        filter_ok = await select_filter_semua_pesan(page)
+        if not filter_ok:
+            log.warning("Failed to switch back to 'Semua Pesan' filter")
         processed_p2 = await _process_conversations_in_current_view(page)
         total_processed += processed_p2
     else:

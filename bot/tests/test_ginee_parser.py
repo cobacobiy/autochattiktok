@@ -28,6 +28,11 @@ class TestGineeParser(unittest.TestCase):
         skip_normal, _ = should_skip_buyer_message("Apakah warna hitam tersedia?")
         self.assertFalse(skip_normal)
 
+    def test_chat_message_direction_unknown(self):
+        from bot.ginee_parser import ChatMessage
+        msg = ChatMessage("msg1", "Hello", "unknown")
+        self.assertEqual(msg.direction, "unknown")
+
 
 if __name__ == "__main__":
     unittest.main()

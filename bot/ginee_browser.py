@@ -106,9 +106,10 @@ async def _process_conversations_in_current_view(page) -> int:
             # Generate AI reply
             store_channel_info = f"{conv.store_name}:{conv.channel}"
             reply_text = generate_ai_reply(
-                prompt_context,
+                prompt_context=prompt_context,
                 conversation_hash=conv_hash,
                 store_channel=store_channel_info,
+                buyer_message=last_msg.text,
             )
 
             if not reply_text:

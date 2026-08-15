@@ -43,13 +43,22 @@ MAX_UNANSWERED_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 def get_auto_reply(message: str) -> str:
     """Fallback static reply when AI fails or exact match found."""
-    msg = message.lower()
+    msg = message.lower().strip()
+    if not msg:
+        return ""
+        
     for key, reply in AUTO_REPLIES.items():
         if key in msg:
             return reply
+            
     for q, a in bot_state.knowledge_answers.items():
-        if q in msg or msg in q:
+        # Match if the question is in the buyer message
+        if q in msg:
             return a
+        # Or if the buyer message is significantly long and is part of a question
+        if len(msg) > 10 and msg in q:
+            return a
+            
     return ""
 
 
@@ -182,13 +191,16 @@ def call_claude(prompt: str, store_channel: str = "") -> str:
 
 
 def generate_ai_reply(
-    buyer_message: str, conversation_hash: str = "", store_channel: str = ""
+    prompt_context: str, 
+    conversation_hash: str = "", 
+    store_channel: str = "",
+    buyer_message: str = ""
 ) -> str:
     """Generate reply using configured AI provider with strict safety checks."""
-    if not buyer_message.strip():
+    if not prompt_context.strip():
         return ""
 
-    # Check static auto replies first
+    # Check static auto replies first (only against the actual buyer message)
     static_reply = get_auto_reply(buyer_message)
     if static_reply:
         log.info("Matched static reply from knowledge base")
@@ -197,18 +209,18 @@ def generate_ai_reply(
     raw_response = ""
     try:
         if AI_PROVIDER == "ollama":
-            raw_response = call_ollama(buyer_message, store_channel)
+            raw_response = call_ollama(prompt_context, store_channel)
         elif AI_PROVIDER == "gemini":
-            raw_response = call_gemini(buyer_message, store_channel)
+            raw_response = call_gemini(prompt_context, store_channel)
         elif AI_PROVIDER == "claude":
-            raw_response = call_claude(buyer_message, store_channel)
+            raw_response = call_claude(prompt_context, store_channel)
         else:
             log.error("Unknown AI_PROVIDER: %s", AI_PROVIDER)
             return ""
     except Exception as e:
         log.error("AI Provider call failed: %s", e)
         log_unanswered_question(
-            buyer_message, conversation_hash, store_channel, reason="AI_ERROR"
+            buyer_message or prompt_context, conversation_hash, store_channel, reason="AI_ERROR"
         )
         return ""
 
@@ -221,7 +233,7 @@ def generate_ai_reply(
     if "TIDAK_TAHU" in response or not response:
         log.info("AI returned TIDAK_TAHU or empty response")
         log_unanswered_question(
-            buyer_message, conversation_hash, store_channel, reason="TIDAK_TAHU"
+            buyer_message or prompt_context, conversation_hash, store_channel, reason="TIDAK_TAHU"
         )
         return ""
 
@@ -232,7 +244,7 @@ def generate_ai_reply(
             MAX_AI_REPLY_LENGTH,
         )
         log_unanswered_question(
-            buyer_message, conversation_hash, store_channel, reason="TOO_LONG"
+            buyer_message or prompt_context, conversation_hash, store_channel, reason="TOO_LONG"
         )
         return ""
 

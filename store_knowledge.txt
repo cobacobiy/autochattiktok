@@ -27,3 +27,9 @@ J: Ongkir dihitung otomatis oleh sistem sesuai dengan alamat lokasi pengiriman.
 
 T: kirim dari mana / pengiriman dari mana
 J: Pengiriman dilakukan dari Penjaringan, Jakarta Utara.
+
+T: stok / apakah stok tersedia
+J: Untuk info ketersediaan stok terbaru, silakan langsung cek halaman produk kami ya kak. Jika produk masih bisa di-order berarti stok masih tersedia 😊
+
+T: garansi / apakah ada garansi
+J: Informasi garansi bisa dilihat di deskripsi produk ya kak. Jika ada pertanyaan lebih lanjut silakan ditanyakan 😊

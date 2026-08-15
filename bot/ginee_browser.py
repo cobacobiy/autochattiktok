@@ -80,9 +80,9 @@ async def _process_conversations_in_current_view(page) -> int:
                 continue
 
             last_msg = messages[-1]
-            if last_msg.direction != "buyer":
+            if last_msg.direction in ("seller", "auto_reply"):
                 log.info(
-                    "Skipping: Last message is not from buyer (direction=%s)",
+                    "Skipping: Last message is from seller/auto_reply (direction=%s)",
                     last_msg.direction,
                 )
                 bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY)
@@ -106,10 +106,13 @@ async def _process_conversations_in_current_view(page) -> int:
                 continue
 
             # Compile all recent buyer requests and full chat thread context
-            buyer_requests = [m.text for m in messages[-10:] if m.direction == "buyer" and m.text.strip()]
+            buyer_requests = [m.text for m in messages[-10:] if m.direction not in ("seller", "auto_reply") and m.text.strip()]
             chat_history_lines = []
             for msg in messages[-8:]:
-                role = "Pembeli" if msg.direction == "buyer" else "CS"
+                if msg.direction in ("seller", "auto_reply"):
+                    role = "CS"
+                else:
+                    role = "Pembeli"
                 chat_history_lines.append(f"{role}: {msg.text}")
 
             prompt_context = (
@@ -136,8 +139,8 @@ async def _process_conversations_in_current_view(page) -> int:
             while recent_msgs and recent_msgs[-1].direction == "auto_reply":
                 recent_msgs.pop()
 
-            if recent_msgs and recent_msgs[-1].direction != "buyer":
-                log.warning("Abort send: Seller replied since initial snapshot")
+            if recent_msgs and recent_msgs[-1].direction in ("seller", "auto_reply"):
+                log.warning("Abort send: Seller/auto-reply detected since initial snapshot")
                 bot_state.replied_cache[prelim_hash] = time.time() - (CACHE_EXPIRY_SECONDS - FAILED_CACHE_EXPIRY)
                 continue
 

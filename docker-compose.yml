@@ -6,9 +6,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://ollama-ginee:11434
     depends_on:
-      ollama:
+      ollama-ginee:
         condition: service_healthy
     volumes:
       - ginee-profile:/data/ginee-profile
@@ -22,13 +22,13 @@ services:
     networks:
       - default
 
-  ollama:
+  ollama-ginee:
     image: ollama/ollama:latest
-    container_name: ollama
+    container_name: ollama-ginee
     environment:
       - OLLAMA_KEEP_ALIVE=1h
     volumes:
-      - ollama-data:/root/.ollama
+      - ollama-data-ginee:/root/.ollama
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
@@ -46,23 +46,23 @@ services:
     networks:
       - default
 
-  ollama-init:
+  ollama-init-ginee:
     image: ollama/ollama:latest
-    container_name: ollama-init
+    container_name: ollama-init-ginee
     restart: "no"
     depends_on:
-      ollama:
+      ollama-ginee:
         condition: service_healthy
     environment:
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://ollama-ginee:11434
     entrypoint: [ "sh", "-c", "until ollama list; do sleep 1; done && ollama pull qwen2.5:3b" ]
     networks:
       - default
 
 volumes:
   ginee-profile:
-  ollama-data:
+  ollama-data-ginee:
 
 networks:
   default:
-    name: autochat_default
+    name: autochattiktok_default

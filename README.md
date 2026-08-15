@@ -27,19 +27,23 @@ Aplikasi balasan otomatis berbasis AI untuk [Ginee Chat](https://chat.ginee.com/
 
 ## Panduan Penggunaan
 
-### 1. Setup Environment
-Salin `.env.example` ke `.env`:
+### 1. Setup Environment Pertama Kali
+Jika Anda baru pertama kali meng-_clone_ di komputer baru, wajib membuat file `.env`:
 ```bash
 cp .env.example .env
 ```
+Lalu edit isi `.env` sesuai kredensial Anda.
 
-### 2. Jalankan via Docker Compose
+### 2. Build & Jalankan
+Untuk menyalakan pertama kali (wajib build ulang image Docker):
 ```bash
 docker compose up -d --build
 ```
+*(Catatan: Untuk menyalakan di kemudian hari jika komputer mati, Anda cukup mengetikkan `docker compose up -d` tanpa `--build`)*
 
 ### 3. Login Manual via noVNC
 Buka browser dan akses `http://localhost:6085`. Selesaikan proses login akun Ginee secara manual. Sesi login akan tersimpan otomatis di persistent profile `/data/ginee-profile`.
+
 
 ### 4. Setup GitHub Actions Self-Hosted Runner (CI/CD)
 Untuk mendaftarkan runner otomatis pada server/mesin local:

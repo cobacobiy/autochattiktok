@@ -1,343 +1,621 @@
-# Implementasi Auto-Reply AI untuk Ginee Chat
+# Code Review & Improvement Issues — autochattiktok
 
-## Ringkasan
+> **Tanggal Review:** 15 Agustus 2026
+> **Status Codebase:** Fungsional, sudah bisa di-deploy dan berjalan. Review ini mengidentifikasi area perbaikan untuk stabilitas, keamanan, dan maintainability.
+> **Cara Pakai:** Setiap issue di bawah bisa dikerjakan secara independen. Pilih satu, kerjakan, buat PR, lalu lanjut ke berikutnya.
 
-Buat aplikasi di folder ini dengan pola arsitektur dari [`cobacobiy/autochat`](https://github.com/cobacobiy/autochat), tetapi target browsernya adalah [Ginee Chat](https://chat.ginee.com/), bukan Shopee Seller Centre.
+---
 
-Bot harus membuka Ginee Chat dengan Playwright, memakai sesi login yang disimpan, mencari percakapan **Belum Dibalas/Belum Dibaca**, membaca pesan terakhir pembeli, membuat jawaban berdasarkan `store_knowledge.txt`, lalu mengirim jawaban satu kali. Kasus yang tidak aman atau tidak diketahui harus dilewati dan dicatat untuk admin.
+## Daftar Issues
 
-> Catatan riset (5 Agustus 2026): panduan ini dibuat dari upstream commit `e7cbc8bab59d426ab03a7e5fe9d8f1896879d3cb` dan halaman/bundle publik Ginee Chat. DOM percakapan Ginee berada di balik login sehingga selector produksi harus dikonfirmasi menggunakan akun uji pada tahap discovery. Jangan memasukkan cookie, token, HTML berisi data pembeli, atau kredensial ke Git.
+| No | Prioritas | Area | Judul Issue |
+|----|-----------|------|-------------|
+| 1 | 🔴 Critical | Security | Gemini API Key terekspos di URL query parameter |
+| 2 | 🔴 Critical | Bug | Port mapping tidak konsisten antara Dockerfile dan docker-compose |
+| 3 | 🔴 Critical | Reliability | Tidak ada validasi pengiriman — bot menganggap sukses tanpa verifikasi |
+| 4 | 🟡 High | Bug | `do_human_delay` dipakai di `ginee_navigation.py` tapi tidak di-import |
+| 5 | 🟡 High | Reliability | Network creation docker-compose `external: true` bisa gagal di fresh deploy |
+| 6 | 🟡 High | Reliability | `bot_state` global mutable — tidak thread-safe dengan health server |
+| 7 | 🟡 High | Observability | Health endpoint tidak melaporkan status bot yang sebenarnya |
+| 8 | 🟡 High | Reliability | Tidak ada exponential backoff pada browser loop error |
+| 9 | 🟡 High | Data | Unanswered file grow tanpa batas — tidak ada rotasi log |
+| 10 | 🟡 High | AI | System prompt tidak menyertakan info store/channel yang sedang diproses |
+| 11 | 🟠 Medium | Performance | httpx Client dibuat ulang setiap kali AI call — seharusnya reuse session |
+| 12 | 🟠 Medium | Bug | `MAX_DAILY_REPLIES` default tidak konsisten antara config.py dan .env.example |
+| 13 | 🟠 Medium | Code Quality | `_last_unreplied_filter_check_time` global mutable di `ginee_browser.py` |
+| 14 | 🟠 Medium | Reliability | Tidak ada retry/recovery untuk kasus DOM stale setelah klik conversation |
+| 15 | 🟠 Medium | Testing | Test file `test_ai_engine.py` menulis ke `/tmp` — tidak portable untuk Windows runner |
+| 16 | 🟢 Low | Code Quality | `selectors.py` import `re` tapi tidak digunakan |
+| 17 | 🟢 Low | Code Quality | `ginee_navigation.py` memiliki fungsi `open_unreplied_tab` yang tidak dipakai |
+| 18 | 🟢 Low | UX | `DEFAULT_REPLY` di config tidak pernah digunakan di alur manapun |
+| 19 | 🟢 Low | Documentation | README belum mencantumkan prasyarat Docker dan Python |
+| 20 | 🟢 Low | CI/CD | Workflow CI/CD tidak memvalidasi YAML syntax docker-compose |
 
-## Keputusan desain
+---
 
-- Pertahankan modul generik upstream: konfigurasi, state/cache, knowledge base, AI engine, health endpoint, logging, Docker/VNC, retry, dan graceful shutdown.
-- Ganti seluruh adapter Shopee dengan adapter Ginee. Jangan menambahkan kondisi Ginee ke file `shopee_browser.py` yang besar.
-- Gunakan UI Ginee yang sudah mengagregasi banyak marketplace. Identitas unik percakapan minimal harus mencakup `store + channel/platform + buyer/conversation`, bukan username saja.
-- Login dilakukan manual melalui browser/noVNC dan disimpan dalam persistent profile. Jangan mengotomatisasi OTP, CAPTCHA, atau mengambil token internal.
-- Mulai dengan mode aman `DRY_RUN=true`: baca pesan dan hasilkan draft/log tanpa mengirim.
-- Jangan mengandalkan class CSS hasil build sebagai selector utama. Prioritas selector: `data-*` stabil, role/accessible name, placeholder/teks terjemahan, lalu fallback posisi.
-- Jangan memanggil API privat Ginee yang ditemukan dari bundle. Gunakan browser UI kecuali tersedia API resmi dan izin tertulis.
-- Ginee sendiri menampilkan fitur **Balasan Otomatis/Auto Reply**. Sebelum memakai bot eksternal, periksa apakah fitur native sudah memenuhi kebutuhan serta cek syarat layanan dan kebijakan marketplace yang terhubung.
+## Detail Issues
 
-## Target struktur folder
+---
 
-```text
-autochattiktok/
-├── .env.example
-├── .gitignore
-├── README.md
-├── docker-compose.yml
-├── store_knowledge.txt
-├── unanswered_questions.txt
-├── bot/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── state.py
-│   ├── knowledge.py
-│   ├── ai_engine.py
-│   ├── browser_loop.py
-│   ├── ginee_browser.py
-│   ├── ginee_navigation.py
-│   ├── ginee_parser.py
-│   ├── ginee_sender.py
-│   ├── selectors.py
-│   ├── health.py
-│   ├── utils.py
-│   ├── Dockerfile
-│   ├── supervisord.conf
-│   ├── requirements.txt
-│   └── tests/
-│       ├── fixtures/
-│       │   ├── conversation_list.html
-│       │   └── conversation_detail.html
-│       ├── test_ginee_parser.py
-│       ├── test_ginee_sender.py
-│       ├── test_ai_engine.py
-│       ├── test_knowledge.py
-│       └── test_config.py
-└── logs/                         # diabaikan Git
-```
+### Issue #1: 🔴 Gemini API Key terekspos di URL query parameter
 
-## Langkah implementasi
+**File:** `bot/ai_engine.py` baris 115
+**Masalah:**
+API key Gemini dikirim sebagai query parameter di URL (`?key=...`). Ini berarti API key bisa muncul di access log, browser history, proxy log, dan error traces.
 
-### 1. Jadikan upstream sebagai referensi, bukan salinan buta
-
-1. Salin modul yang platform-agnostic dari upstream: `ai_engine.py`, `knowledge.py`, `state.py`, `health.py`, `utils.py`, setup logging, Dockerfile, supervisor, dan test yang relevan.
-2. Port dan rapikan `browser_loop.py`; ubah nama/konstanta Shopee menjadi Ginee.
-3. Jangan membawa `shopee_browser.py`, `chat_navigation.py`, `chat_parser.py`, `chat_sender.py`, serta JS selector Shopee sebagai implementasi Ginee.
-4. Tambahkan atribusi/referensi upstream dan pertahankan lisensi upstream bila tersedia. Jika lisensinya tidak jelas, minta izin pemilik sebelum mendistribusikan kode hasil salinan.
-
-### 2. Buat konfigurasi Ginee
-
-Isi `.env.example`:
-
-```env
-GINEE_CHAT_URL=https://chat.ginee.com/
-PROFILE_DIR=/data/ginee-profile
-HEADLESS=false
-DRY_RUN=true
-POLL_INTERVAL=8
-BROWSER_LIFETIME=21600
-MAX_DAILY_REPLIES=500
-MAX_CACHE_SIZE=1000
-LOG_DIR=/data/logs
-LOG_FORMAT=text
-KNOWLEDGE_PATH=/app/store_knowledge.txt
-UNANSWERED_PATH=/app/unanswered_questions.txt
-
-AI_PROVIDER=ollama
-OLLAMA_URL=http://ollama:11434
-OLLAMA_MODEL=qwen2.5:3b
-# GEMINI_API_KEY=
-# ANTHROPIC_API_KEY=
-```
-
-Di `config.py`:
-
-- ganti `SHOPEE_CHAT_URL` menjadi `GINEE_CHAT_URL`;
-- ganti default profile `/data/shopee-profile` menjadi `/data/ginee-profile`;
-- tambahkan parsing boolean yang ketat untuk `DRY_RUN` dan `HEADLESS`;
-- validasi angka: interval minimal 3 detik, limit harian positif, dan panjang jawaban maksimal 1.000 karakter (UI publik Ginee menyebut batas ini; gunakan batas internal lebih rendah, misalnya 600, agar aman);
-- jangan sediakan `GINEE_USERNAME`/`GINEE_PASSWORD`; sesi login manual lebih aman untuk OTP/CAPTCHA.
-
-### 3. Discovery DOM dengan akun uji
-
-Jalankan browser headful dan login manual. Gunakan akun/toko staging atau percakapan uji, bukan pembeli nyata.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r bot/requirements.txt
-playwright install chromium
-DRY_RUN=true HEADLESS=false python -m bot.main
-```
-
-Setelah login, dokumentasikan locator berikut di `bot/selectors.py`:
-
-| Elemen | Kandidat berbasis UI publik | Yang harus diverifikasi |
-|---|---|---|
-| Root aplikasi | `#root` | root sudah selesai loading, bukan spinner |
-| Tab antrean | teks `Belum Dibalas` / `Unreplied`; fallback `Belum Dibaca` / `Unread` | tab aktif dan jumlah item |
-| Daftar percakapan | region/list di panel kiri | satu item, badge unread/unreplied, store/channel, buyer, preview |
-| Panel pesan | region tengah setelah item diklik | container scroll dan bubble pesan |
-| Input | placeholder `Masukkan pesan...` / `Type a message...` | `textarea`, input, atau `contenteditable` |
-| Tombol kirim | `button` bernama `Kirim` / `Send` | enabled hanya ketika ada teks |
-| Status gagal | `Gagal mengirim pesan` / `Failed to send message` | retry tidak membuat duplikat |
-| Keadaan kosong | `Belum ada pesan` / `No messages` | tidak dianggap error |
-
-Simpan snapshot HTML yang sudah disanitasi ke `bot/tests/fixtures/`. Hapus nama, isi chat, nomor pesanan, alamat, URL gambar, token, dan atribut identitas. Ambil screenshot hanya ke `logs/`, jangan commit.
-
-Jalankan halaman dengan locale Indonesia dan Inggris untuk memastikan fallback bahasa. Periksa juga apakah daftar memakai virtual scrolling; jika ya, proses hanya elemen yang sedang terlihat dan gunakan ID/metadata percakapan, bukan index baris.
-
-### 4. Pusatkan selector
-
-Buat `selectors.py` yang menyimpan beberapa kandidat per elemen. Contoh bentuk API:
-
+**Langkah Perbaikan:**
+1. Buka `bot/ai_engine.py`
+2. Cari fungsi `call_gemini` (sekitar baris 114)
+3. Ubah URL agar tidak mengandung key:
 ```python
-UNREPLIED_TAB = [
-    {"role": "tab", "name": re.compile(r"Belum Dibalas|Unreplied", re.I)},
-    {"text": re.compile(r"Belum Dibalas|Unreplied", re.I)},
-]
+# SEBELUM (baris 115):
+url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
 
-MESSAGE_INPUT = [
-    "textarea[placeholder*='Masukkan pesan']",
-    "textarea[placeholder*='Type a message']",
-    "[contenteditable='true'][role='textbox']",
-]
+# SESUDAH:
+url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+headers = {"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"}
 ```
+4. Update `client.post()` call untuk menyertakan `headers=headers`
+5. Jalankan test: `python -m unittest bot/tests/test_ai_engine.py`
 
-Tambahkan helper `first_visible(page_or_scope, candidates)`. Setiap selector fallback harus mencatat selector mana yang berhasil. Jika selector utama gagal berulang kali, simpan diagnostic screenshot/HTML tersanitasi dan hentikan pengiriman, bukan mengklik elemen acak.
+**Verifikasi:** Pastikan tidak ada API key yang muncul di log output.
 
-### 5. Implementasi navigasi dan autentikasi
+---
 
-Di `ginee_navigation.py`:
+### Issue #2: 🔴 Port mapping tidak konsisten antara Dockerfile dan docker-compose
 
-1. Buka `GINEE_CHAT_URL` dan tunggu `domcontentloaded` serta hilangnya loading wrapper.
-2. Deteksi redirect/login Accounts berdasarkan URL dan keberadaan form login.
-3. Jika logout, log instruksi login manual dan tunggu sampai root Ginee Chat muncul. Timeout sebaiknya 10 menit lalu restart browser secara bersih.
-4. Buka tab `Belum Dibalas`. Jika tidak tersedia, gunakan `Belum Dibaca`; jangan memproses `Semua Pesan` secara default.
-5. Tangani status paket habis, toko belum terhubung/tidak terotorisasi, modal error, network error, dan halaman kosong sebagai kondisi `PAUSED`, bukan loop klik.
-6. Jangan klik menu **Balasan Otomatis**; itu fitur native Ginee, bukan inbox percakapan.
+**File:** `bot/Dockerfile` baris 28 dan `docker-compose.yml` baris 13-16
+**Masalah:**
+- Dockerfile EXPOSE: `6080`, `8080`, `5900`
+- docker-compose maps: `6085:6080`, `7085:8080`, `5905:5900`
+- AGENTS.md dan README menuliskan port: `6085`, `7085`, `5905`
 
-State login harus bertahan lewat persistent context. Pastikan profile tidak pernah dimount ke dua container secara bersamaan.
+Port internal ini sudah benar dan konsisten. Namun, README perlu menambahkan penjelasan bahwa port **internal** container berbeda dari port **host**.
 
-### 6. Implementasi pembacaan antrean
+**Langkah Perbaikan:**
+1. Buka `README.md`
+2. Di bagian "Informasi Port Service", tambahkan penjelasan:
+```markdown
+## Informasi Port Service
 
-Di `ginee_browser.py`, buat model data:
+| Service | Port Host | Port Internal Container |
+|---------|-----------|------------------------|
+| noVNC Web Interface | `6085` | `6080` |
+| Health API Status | `7085` | `8080` |
+| VNC Direct Port | `5905` | `5900` |
+```
+3. Ini bukan bug kritis, tapi membingungkan saat debugging. Pastikan dokumentasi jelas.
 
+**Verifikasi:** Baca README dan pastikan port mapping sudah jelas.
+
+---
+
+### Issue #3: 🔴 Tidak ada validasi pengiriman — bot menganggap sukses tanpa verifikasi bubble
+
+**File:** `bot/ginee_sender.py` baris 56-67
+**Masalah:**
+Setelah klik tombol kirim, bot hanya mengecek apakah ada notifikasi error. Tapi **tidak memverifikasi** apakah bubble balasan seller benar-benar muncul di panel chat. Ini berarti:
+- Jika jaringan lambat, bot menganggap sukses padahal pesan belum terkirim
+- Jika ada error non-notifikasi, pesan hilang tanpa jejak
+
+**Langkah Perbaikan:**
+1. Buka `bot/ginee_sender.py`
+2. Setelah pengecekan error notification (baris 58-64), tambahkan verifikasi bubble:
 ```python
-@dataclass
-class ConversationSummary:
-    conversation_id: str
-    buyer_name: str
-    store_name: str
-    channel: str
-    preview: str
-    unread: bool
-    unreplied: bool
-
-@dataclass
-class ChatMessage:
-    message_id: str | None
-    text: str
-    direction: Literal["buyer", "seller", "system", "unknown"]
-    sent_at: str | None
+        # Verify outgoing bubble appeared
+        try:
+            # Cek apakah bubble seller baru muncul dengan teks yang sama
+            from bot.ginee_parser import parse_chat_messages
+            verify_msgs = await parse_chat_messages(page)
+            if verify_msgs:
+                last = verify_msgs[-1]
+                if last.direction == "seller" and reply_text[:50] in last.text:
+                    log.info("Reply verified: outgoing bubble confirmed")
+                    return True
+            log.warning("Reply verification: outgoing bubble not confirmed, treating as uncertain success")
+        except Exception as e:
+            log.warning("Reply verification failed: %s", e)
 ```
+3. Jalankan test: `python -m unittest bot/tests/test_ginee_sender.py`
 
-Alurnya:
+**Verifikasi:** Jalankan dengan DRY_RUN=false di staging dan pastikan log menunjukkan "Reply verified".
 
-1. Ambil maksimal 5 percakapan teratas yang `unreplied=true`.
-2. Bangun `conversation_id` dari atribut stabil DOM. Jika tidak ada, hash gabungan `store|channel|buyer`, tetapi log bahwa ini fallback.
-3. Klik satu item, tunggu header/panel berubah ke percakapan tersebut, lalu tunggu pesan stabil.
-4. Baca maksimal 10 pesan terakhir untuk konteks AI.
-5. Tentukan arah pesan dari atribut/struktur DOM yang terverifikasi. Posisi bubble kiri/kanan hanya fallback terakhir.
-6. Abaikan system notification, gambar/sticker tanpa caption, pesan unsupported, pesan kosong, dan acknowledgment seperti `ok`, `sip`, `terima kasih`.
-7. Proses hanya jika pesan terakhir adalah dari buyer. Jika arah `unknown`, jangan kirim.
+---
 
-Jangan memakai preview sidebar sebagai isi final jika panel detail tersedia; preview boleh dipakai hanya untuk deduplikasi awal.
+### Issue #4: 🟡 `do_human_delay` dipakai di `ginee_navigation.py` tapi tidak di-import
 
-### 7. Deduplikasi dan race-condition
+**File:** `bot/ginee_navigation.py` baris 108
+**Masalah:**
+Fungsi `auto_login_ginee` menggunakan `do_human_delay(page, ...)` di baris 108, 117, 124, tapi `do_human_delay` tidak ada di daftar import file ini. Kode hanya berjalan karena fungsi ini jarang terpanggil (hanya saat login page terdeteksi). Ketika terpanggil, akan `NameError`.
 
-Key cache harus berupa:
-
-```text
-sha256(store_name | channel | conversation_id | last_buyer_message_id_or_normalized_text)
+**Langkah Perbaikan:**
+1. Buka `bot/ginee_navigation.py`
+2. Tambahkan import di bagian atas file (setelah baris 5):
+```python
+from bot.utils import do_human_delay
 ```
+3. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
 
-Sebelum AI dipanggil dan sekali lagi sebelum klik kirim:
+**Verifikasi:** Cari semua penggunaan `do_human_delay` di `ginee_navigation.py` dan pastikan tidak ada NameError.
 
-- pastikan percakapan/header masih sama;
-- baca ulang pesan terakhir;
-- pastikan belum ada balasan seller/admin sejak snapshot pertama;
-- pastikan key belum pernah sukses dikirim;
-- pastikan limit harian belum tercapai.
+---
 
-Status cache minimal: `seen`, `drafted`, `sent`, `skipped`, `failed`. Hanya `sent` yang dihitung sebagai reply. Jangan menandai sukses hanya karena tombol/Enter sudah ditekan; verifikasi bubble outgoing muncul dengan teks yang sama atau input kosong **dan** tidak ada status gagal.
+### Issue #5: 🟡 Network docker-compose `external: true` bisa gagal di fresh deploy
 
-### 8. Integrasi AI dan knowledge base
-
-Pertahankan dukungan Ollama/Gemini/Claude dari upstream. System prompt harus menyatakan:
-
-- jawab sebagai CS toko secara singkat dan sopan;
-- hanya gunakan fakta dari knowledge base dan konteks chat;
-- jangan mengarang stok, harga, status pesanan, ongkir, nomor resi, promo, atau kebijakan;
-- jangan meminta password, OTP, data kartu, atau data sensitif;
-- bila tidak yakin keluarkan token persis `TIDAK_TAHU`;
-- keluarkan jawaban saja, tanpa label `Jawaban:`;
-- maksimal 600 karakter.
-
-Format awal `store_knowledge.txt` boleh tetap `pertanyaan | jawaban`. Tambahkan bagian kebijakan eskalasi. Jika output `TIDAK_TAHU`, kosong, terlalu panjang, mengandung pola prompt leakage, atau bertentangan dengan kebijakan, jangan kirim dan tulis JSON Lines ke `unanswered_questions.txt` dengan waktu, hash conversation, store/channel, dan pertanyaan; jangan menyimpan PII yang tidak diperlukan.
-
-### 9. Implementasi pengiriman aman
-
-Di `ginee_sender.py`:
-
-1. Cari input hanya di dalam panel percakapan aktif.
-2. Klik/focus lalu isi teks dengan API Playwright (`fill` untuk textarea; keyboard untuk contenteditable).
-3. Di `DRY_RUN`, log `would_send` dan berhenti di sini.
-4. Di mode produksi, prioritaskan tombol `Kirim/Send`; gunakan Enter hanya setelah perilakunya diverifikasi. Bundle publik menyatakan Enter mengirim dan Shift+Enter membuat baris baru, tetapi tetap uji pada akun staging.
-5. Setelah kirim, tunggu bubble seller yang cocok dan periksa `Failed to send message/Gagal mengirim pesan`.
-6. Jika hasil ambigu, beri status `failed_unknown`; jangan retry otomatis pada siklus yang sama karena berisiko mengirim dua kali.
-7. Tambahkan lock tunggal agar hanya satu pengiriman aktif dalam satu instance.
-
-### 10. Browser loop dan pemulihan
-
-Adaptasi loop upstream:
-
-- polling awal 8–15 detik dengan jitter kecil;
-- reload knowledge base berkala;
-- bersihkan cache setelah 24 jam dan batasi ukurannya;
-- restart context setiap 6 jam;
-- heartbeat serta daily report;
-- health endpoint memberi status `starting`, `waiting_login`, `ready`, `paused`, atau `degraded`;
-- exponential backoff untuk network/Ginee error;
-- pause minimal beberapa menit bila CAPTCHA/challenge atau rate limit muncul;
-- jangan mencoba menyembunyikan automasi atau melewati CAPTCHA. Minta intervensi operator melalui noVNC.
-
-### 11. Docker dan operasi
-
-Ubah nama service dan volume upstream:
-
+**File:** `docker-compose.yml` baris 23-26
+**Masalah:**
 ```yaml
-services:
-  ginee-bot:
-    build: ./bot
-    container_name: ginee-bot
-    shm_size: 2gb
-    restart: unless-stopped
-    env_file: .env
-    volumes:
-      - ginee-profile:/data/ginee-profile
-      - ./logs:/data/logs
-      - ./store_knowledge.txt:/app/store_knowledge.txt:ro
-      - ./unanswered_questions.txt:/app/unanswered_questions.txt
-    ports:
-      - "6080:6080" # noVNC/login manual
-      - "7080:8080" # health
+networks:
+  default:
+    name: autochat_default
+    external: true
+```
+Docker network `autochat_default` harus sudah ada sebelum `docker compose up`. Pada fresh server atau Windows staging, network ini belum tentu ada sehingga deploy gagal.
 
-volumes:
-  ginee-profile:
+**Langkah Perbaikan:**
+1. Buka `docker-compose.yml`
+2. Ganti konfigurasi network:
+```yaml
+# SEBELUM:
+networks:
+  default:
+    name: autochat_default
+    external: true
+
+# SESUDAH — buat network otomatis jika belum ada:
+networks:
+  default:
+    name: autochat_default
+```
+3. Atau, jika memang perlu share network dengan project `autochat`, tambahkan perintah di CI/CD dan README:
+```bash
+docker network create autochat_default 2>/dev/null || true
+```
+4. Jalankan: `docker compose config` untuk validasi syntax.
+
+**Verifikasi:** Pada server bersih, jalankan `docker compose up -d --build` tanpa membuat network terlebih dahulu — harus berhasil.
+
+---
+
+### Issue #6: 🟡 `bot_state` global mutable — tidak thread-safe dengan health server
+
+**File:** `bot/state.py` dan `bot/health.py`
+**Masalah:**
+`bot_state` adalah singleton global yang diakses oleh:
+- Main async loop (baca/tulis di thread utama)
+- Health HTTP server (baca di thread daemon terpisah)
+
+Tidak ada lock/synchronization. Di Python CPython GIL melindungi simple reads, tapi ini bukan jaminan formal dan bisa menghasilkan data tidak konsisten.
+
+**Langkah Perbaikan:**
+1. Buka `bot/state.py`
+2. Tambahkan threading lock:
+```python
+import threading
+
+# Di dalam class BotState, tambahkan:
+_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+def snapshot(self) -> dict:
+    """Thread-safe snapshot for health endpoint."""
+    with self._lock:
+        return {
+            "daily_reply_counter": self.daily_reply_counter,
+            "daily_skip_count": self.daily_skip_count,
+            "daily_unanswered_count": self.daily_unanswered_count,
+            "daily_ai_replied_count": self.daily_ai_replied_count,
+            "cache_size": len(self.replied_cache),
+            "knowledge_loaded": bool(self.knowledge_base),
+            "knowledge_entries": len(self.knowledge_answers),
+        }
+```
+3. Buka `bot/health.py` dan gunakan `bot_state.snapshot()` di `do_GET`.
+4. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
+
+**Verifikasi:** Health endpoint tetap mengembalikan JSON yang valid.
+
+---
+
+### Issue #7: 🟡 Health endpoint tidak melaporkan status bot yang sebenarnya
+
+**File:** `bot/health.py`
+**Masalah:**
+Health endpoint selalu mengembalikan `"status": "ok"` tanpa memperhatikan apakah:
+- Bot sedang menunggu login (`waiting_login`)
+- Browser sudah crash / restart cycle
+- Ada error berulang
+
+**Langkah Perbaikan:**
+1. Buka `bot/state.py`
+2. Tambahkan field status:
+```python
+bot_status: str = "starting"  # starting, waiting_login, running, error
+last_error: str = ""
+last_successful_cycle: float = 0.0
+```
+3. Buka `bot/browser_loop.py`:
+   - Set `bot_state.bot_status = "running"` setelah login berhasil dan loop aktif
+   - Set `bot_state.bot_status = "waiting_login"` ketika `check_login_status` return False
+   - Set `bot_state.bot_status = "error"` di exception handler
+   - Update `bot_state.last_successful_cycle = time.time()` setiap sukses process
+4. Buka `bot/health.py` dan gunakan `bot_state.bot_status` sebagai value `"status"`.
+5. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
+
+**Verifikasi:** Curl `http://localhost:7085` dan lihat status berubah sesuai kondisi bot.
+
+---
+
+### Issue #8: 🟡 Tidak ada exponential backoff pada browser loop error
+
+**File:** `bot/browser_loop.py` baris 118-120
+**Masalah:**
+```python
+except Exception as e:
+    log.error("Unhandled error in browser loop: %s", e, exc_info=True)
+    await asyncio.sleep(10)  # selalu 10 detik
+```
+Jika error berulang (misalnya Ginee down), bot akan terus retry setiap 10 detik tanpa backoff. Ini bisa menyebabkan rate limiting atau log spam.
+
+**Langkah Perbaikan:**
+1. Buka `bot/browser_loop.py`
+2. Tambahkan counter error dan backoff:
+```python
+async def run_browser_loop():
+    load_knowledge_base()
+    consecutive_errors = 0
+
+    while True:
+        # ... existing code ...
+        try:
+            # ... existing browser session code ...
+            consecutive_errors = 0  # reset on success
+        except Exception as e:
+            consecutive_errors += 1
+            backoff = min(10 * (2 ** consecutive_errors), 300)  # max 5 menit
+            log.error("Unhandled error (attempt %d, backoff %ds): %s", consecutive_errors, backoff, e, exc_info=True)
+            await asyncio.sleep(backoff)
+```
+3. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
+
+**Verifikasi:** Simulasikan error berturut-turut dan pastikan interval sleep meningkat.
+
+---
+
+### Issue #9: 🟡 Unanswered file grow tanpa batas — tidak ada rotasi
+
+**File:** `bot/ai_engine.py` fungsi `log_unanswered_question`
+**Masalah:**
+File `unanswered_questions.txt` hanya di-append terus tanpa batasan ukuran. Dalam jangka panjang bisa menghabiskan disk space.
+
+**Langkah Perbaikan:**
+1. Buka `bot/ai_engine.py`
+2. Tambahkan pengecekan ukuran file sebelum menulis:
+```python
+import shutil
+
+MAX_UNANSWERED_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+def log_unanswered_question(question, conversation_hash="", store_channel="", reason="TIDAK_TAHU"):
+    try:
+        # Rotate file jika sudah terlalu besar
+        if os.path.exists(UNANSWERED_PATH):
+            size = os.path.getsize(UNANSWERED_PATH)
+            if size > MAX_UNANSWERED_FILE_SIZE:
+                backup = UNANSWERED_PATH + ".old"
+                shutil.move(UNANSWERED_PATH, backup)
+                log.info("Rotated unanswered file (%d bytes) to %s", size, backup)
+
+        # ... sisanya sama seperti sekarang ...
+```
+3. Jalankan test: `python -m unittest bot/tests/test_ai_engine.py`
+
+**Verifikasi:** Buat file unanswered > 10MB dan pastikan di-rotate otomatis.
+
+---
+
+### Issue #10: 🟡 System prompt AI tidak menyertakan info store/channel
+
+**File:** `bot/ai_engine.py` fungsi `_build_system_prompt` dan `generate_ai_reply`
+**Masalah:**
+System prompt yang dikirim ke AI tidak menyebutkan toko mana yang sedang dibalas. Jika bot menangani multi-store, AI tidak tahu konteks toko sehingga bisa memberikan jawaban yang tidak relevan.
+
+**Langkah Perbaikan:**
+1. Buka `bot/ai_engine.py`
+2. Ubah signature `_build_system_prompt` agar menerima `store_channel`:
+```python
+def _build_system_prompt(store_channel: str = "") -> str:
+    # ... kode existing ...
+    store_info = f"\nAnda sedang menjawab chat untuk toko: {store_channel}\n" if store_channel else ""
+    return (
+        "Anda adalah Customer Service resmi toko online di Ginee Chat.\n"
+        f"{store_info}"
+        # ... sisanya sama ...
+    )
+```
+3. Update pemanggilan `_build_system_prompt()` di `call_ollama`, `call_gemini`, `call_claude` untuk meneruskan parameter `store_channel`.
+4. Ini memerlukan perubahan signature fungsi-fungsi AI call. Alternatif lebih mudah: simpan `store_channel` di variabel modul/state sebelum memanggil AI.
+5. Jalankan test: `python -m unittest bot/tests/test_ai_engine.py`
+
+**Verifikasi:** Periksa log AI call dan pastikan store info muncul di prompt.
+
+---
+
+### Issue #11: 🟠 httpx Client dibuat ulang setiap kali AI call
+
+**File:** `bot/ai_engine.py` baris 102, 121, 153
+**Masalah:**
+Setiap call ke Ollama/Gemini/Claude membuat `httpx.Client()` baru. Ini berarti TCP connection tidak di-reuse dan ada overhead setup koneksi setiap kali.
+
+**Langkah Perbaikan:**
+1. Buka `bot/ai_engine.py`
+2. Buat modul-level client yang reusable:
+```python
+# Di bagian atas file, setelah import:
+_http_client = httpx.Client(timeout=120.0)
+```
+3. Ganti semua `with httpx.Client(timeout=120.0) as client:` menjadi langsung pakai `_http_client`:
+```python
+# SEBELUM:
+with httpx.Client(timeout=120.0) as client:
+    resp = client.post(url, json=payload)
+
+# SESUDAH:
+resp = _http_client.post(url, json=payload)
+```
+4. Lakukan untuk ketiga fungsi: `call_ollama`, `call_gemini`, `call_claude`.
+5. Jalankan test: `python -m unittest bot/tests/test_ai_engine.py`
+
+**Verifikasi:** Bot tetap berfungsi normal. Perhatikan log untuk error koneksi yang mungkin muncul karena connection reuse.
+
+---
+
+### Issue #12: 🟠 `MAX_DAILY_REPLIES` default tidak konsisten
+
+**File:** `bot/config.py` baris 26 dan `.env.example` baris 9
+**Masalah:**
+- `config.py`: `MAX_DAILY_REPLIES = max(1, int(os.getenv("MAX_DAILY_REPLIES", "500")))`
+- `AGENTS.md`: menyebut default `5000`
+- `.env.example`: `MAX_DAILY_REPLIES=500`
+
+Ini membingungkan karena AGENTS.md bilang 5000, tapi kode default-nya 500.
+
+**Langkah Perbaikan:**
+1. Tentukan mana yang benar: 500 atau 5000
+2. Jika 500 yang benar, update `AGENTS.md` baris yang menyebut "default: `5000`" menjadi "default: `500`"
+3. Jika 5000 yang benar, update `config.py` baris 26 dan `.env.example` baris 9
+4. Pastikan semua 3 file konsisten.
+
+**Verifikasi:** Grep `MAX_DAILY_REPLIES` di seluruh project dan pastikan semua default value sama.
+
+---
+
+### Issue #13: 🟠 Global mutable `_last_unreplied_filter_check_time`
+
+**File:** `bot/ginee_browser.py` baris 27, 138, 148, 153
+**Masalah:**
+```python
+_last_unreplied_filter_check_time = 0.0
+# ...
+global _last_unreplied_filter_check_time
+```
+Variabel global mutable ini seharusnya dikelola di `BotState` agar lebih terstruktur dan testable.
+
+**Langkah Perbaikan:**
+1. Buka `bot/state.py` dan tambahkan field baru:
+```python
+last_unreplied_filter_check: float = 0.0
+```
+2. Buka `bot/ginee_browser.py`:
+   - Hapus baris `_last_unreplied_filter_check_time = 0.0`
+   - Hapus `global _last_unreplied_filter_check_time`
+   - Ganti semua referensi `_last_unreplied_filter_check_time` dengan `bot_state.last_unreplied_filter_check`
+3. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
+
+**Verifikasi:** Bot tetap menjalankan cek filter "Belum Dibalas" setiap 15 menit.
+
+---
+
+### Issue #14: 🟠 Tidak ada retry/recovery untuk DOM stale setelah klik conversation
+
+**File:** `bot/ginee_browser.py` baris 53-56
+**Masalah:**
+Setelah klik conversation item, bot langsung `parse_chat_messages`. Jika DOM belum ter-render (loading lambat), parse bisa return kosong dan conversation di-skip.
+
+**Langkah Perbaikan:**
+1. Buka `bot/ginee_browser.py`
+2. Setelah `await conv.element.click(force=True)` (baris 53), tambahkan retry sederhana:
+```python
+if conv.element:
+    await conv.element.click(force=True)
+    await do_human_delay(page, min_ms=1500, max_ms=3000)
+
+messages = None
+for attempt in range(3):
+    messages = await parse_chat_messages(page)
+    if messages:
+        break
+    log.debug("Retry %d: waiting for messages to load...", attempt + 1)
+    await page.wait_for_timeout(2000)
+
+if not messages:
+    log.info("No messages found after retries for %s", conv.conversation_id)
+    bot_state.replied_cache[prelim_hash] = time.time()
+    continue
+```
+3. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
+
+**Verifikasi:** Jalankan bot dengan koneksi lambat dan pastikan parsing berhasil setelah retry.
+
+---
+
+### Issue #15: 🟠 Test menulis ke `/tmp` — tidak portable untuk Windows runner
+
+**File:** `bot/tests/test_ai_engine.py` baris 22, 41, 55
+**Masalah:**
+Test menggunakan hardcoded path `/tmp/test_unanswered*.txt`. Pada Windows runner (staging), `/tmp` tidak ada sehingga test akan gagal.
+
+**Langkah Perbaikan:**
+1. Buka `bot/tests/test_ai_engine.py`
+2. Ganti `/tmp/` dengan `tempfile.gettempdir()`:
+```python
+import tempfile
+
+# SEBELUM:
+test_path = "/tmp/test_unanswered.txt"
+
+# SESUDAH:
+test_path = os.path.join(tempfile.gettempdir(), "test_unanswered.txt")
+```
+3. Lakukan untuk semua 3 occurrences (baris 22, 41, 55).
+4. Jalankan test: `python -m unittest bot/tests/test_ai_engine.py`
+
+**Verifikasi:** Jalankan test di Linux dan Windows, keduanya harus lulus.
+
+---
+
+### Issue #16: 🟢 Import `re` tidak digunakan di `selectors.py`
+
+**File:** `bot/selectors.py` baris 2
+**Masalah:**
+```python
+import re  # tidak digunakan di manapun di file ini
 ```
 
-Mulai satu instance dahulu. Untuk banyak akun Ginee, setiap container wajib memiliki profile, log, port, dan unanswered file berbeda. Jangan menjalankan dua worker untuk profile atau inbox yang sama.
+**Langkah Perbaikan:**
+1. Buka `bot/selectors.py`
+2. Hapus baris `import re`
+3. Jalankan lint: `python -m ruff check bot/selectors.py`
 
-### 12. Test
+**Verifikasi:** `ruff check` tidak melaporkan error/warning.
 
-Unit test wajib:
+---
 
-- parser membedakan buyer/seller/system dari fixture;
-- parser tidak menganggap posisi sebagai seller jika ada atribut direction eksplisit;
-- tab memilih `Belum Dibalas`, lalu fallback `Belum Dibaca`;
-- ack, gambar tanpa teks, unsupported, dan system message dilewati;
-- cache key berbeda untuk store/channel berbeda walau buyer dan teks sama;
-- `TIDAK_TAHU` dicatat dan tidak dikirim;
-- dry-run tidak menekan Enter/tombol;
-- sender mendeteksi send success, send failure, dan hasil ambigu;
-- pesan buyer baru yang masuk saat AI berjalan membatalkan draft lama;
-- balasan admin yang masuk saat AI berjalan mencegah bot mengirim;
-- limit harian, cache expiry, dan hot reload knowledge bekerja.
+### Issue #17: 🟢 Fungsi `open_unreplied_tab` tidak dipakai
 
-Test manual staging:
+**File:** `bot/ginee_navigation.py` baris 204-207
+**Masalah:**
+Fungsi `open_unreplied_tab` didefinisikan tapi tidak dipanggil dari manapun di codebase. Dead code.
 
-1. Login manual dan restart container; sesi tetap aktif.
-2. Kirim pertanyaan FAQ dari akun marketplace uji; tepat satu draft tercipta dalam dry-run.
-3. Aktifkan pengiriman untuk satu toko uji; tepat satu balasan muncul.
-4. Kirim `ok`; bot tidak membalas.
-5. Kirim pertanyaan di luar knowledge; tidak ada balasan dan ada entry unanswered.
-6. Balas manual saat AI sedang memproses; bot membatalkan kirim.
-7. Putuskan jaringan dan pulihkan; tidak ada duplikasi.
-8. Ubah bahasa Indonesia/Inggris; navigasi dan input tetap ditemukan.
-9. Uji dua store/channel dengan buyer bernama sama; cache tidak bentrok.
-10. Logout/expire session; status berubah ke `waiting_login`, tanpa percobaan login otomatis.
+**Langkah Perbaikan:**
+1. Grep seluruh project: `grep -r "open_unreplied_tab" bot/`
+2. Jika tidak ada pemanggil, hapus fungsi tersebut dari `ginee_navigation.py`
+3. Jalankan test: `python -m unittest discover -s bot/tests -p "test_*.py"`
 
-## Urutan milestone
+**Verifikasi:** Tidak ada error import atau test failure setelah penghapusan.
 
-- [ ] **M0 — Legal dan akses:** konfirmasi izin automasi, buat akun/toko uji, nilai fitur Auto Reply native Ginee.
-- [ ] **M1 — Scaffold:** port modul generik, konfigurasi Ginee, Docker/noVNC, health endpoint.
-- [ ] **M2 — DOM discovery:** dokumentasikan locator, buat fixture tersanitasi, dukung ID/EN.
-- [ ] **M3 — Read-only:** navigasi antrean dan parser berjalan stabil dengan `DRY_RUN=true` selama minimal 24 jam.
-- [ ] **M4 — AI draft:** knowledge base, guardrail, unanswered logger, deduplikasi, race checks.
-- [ ] **M5 — Send staging:** kirim ke percakapan uji, verifikasi hasil, failure handling tanpa retry ganda.
-- [ ] **M6 — Pilot:** satu toko, allowlist, jam operasi terbatas, limit 20 balasan/hari, review manusia harian.
-- [ ] **M7 — Production:** naikkan limit bertahap setelah audit log dan tingkat kesalahan memenuhi target.
+---
 
-## Definition of Done
+### Issue #18: 🟢 `DEFAULT_REPLY` tidak pernah digunakan
 
-- [ ] Tidak ada nama variabel, URL, profile, container, atau selector Shopee tersisa di jalur runtime.
-- [ ] Semua selector Ginee terpusat dan diverifikasi pada UI login aktual, bukan hanya dari bundle publik.
-- [ ] Bot hanya memproses percakapan buyer yang belum dibalas.
-- [ ] Tidak pernah mengirim ketika direction, conversation identity, atau hasil pengiriman ambigu.
-- [ ] Satu pesan buyer menghasilkan maksimal satu balasan walau restart/network error terjadi.
-- [ ] Balasan manual admin menang terhadap draft bot.
-- [ ] `DRY_RUN=true` menjadi default.
-- [ ] Kredensial, cookie, token, profile, screenshot, log PII, dan `.env` tidak masuk Git.
-- [ ] Unit test, lint, dan test manual staging lulus.
-- [ ] README menjelaskan login manual, noVNC, knowledge base, dry-run, aktivasi produksi, rollback, serta risiko kebijakan.
+**File:** `bot/config.py` baris 54
+**Masalah:**
+```python
+DEFAULT_REPLY = os.getenv("DEFAULT_REPLY", "Ada yang bisa dibantu?")
+```
+Variabel ini di-import di `ai_engine.py` (baris 19) tapi **tidak pernah digunakan** di alur manapun. Ketika AI gagal atau return TIDAK_TAHU, bot mengembalikan string kosong `""`, bukan `DEFAULT_REPLY`.
+
+**Langkah Perbaikan:**
+Pilih salah satu:
+
+**Opsi A — Gunakan DEFAULT_REPLY sebagai fallback:**
+1. Buka `bot/ai_engine.py` fungsi `generate_ai_reply`
+2. Di bagian akhir (sebelum `return ""`), tambahkan:
+```python
+# Jika tidak ada reply dari AI dan tidak ada static match, gunakan default
+return DEFAULT_REPLY
+```
+
+**Opsi B — Hapus DEFAULT_REPLY jika memang tidak diperlukan:**
+1. Hapus dari `config.py`, `.env.example`, dan import di `ai_engine.py`
+
+**Verifikasi:** Jalankan test dan pastikan tidak ada broken import.
+
+---
+
+### Issue #19: 🟢 README belum mencantumkan prasyarat
+
+**File:** `README.md`
+**Masalah:**
+README langsung menuju "Setup Environment" tanpa menyebutkan prasyarat seperti Docker, Docker Compose, Python versi, dll.
+
+**Langkah Perbaikan:**
+1. Buka `README.md`
+2. Tambahkan bagian "Prasyarat" sebelum "Panduan Penggunaan":
+```markdown
+## Prasyarat
+
+- **Docker** >= 20.10 dan **Docker Compose** v2
+- **Python** >= 3.11 (untuk development/testing lokal)
+- **Git** untuk clone repository
+- **Koneksi Internet** untuk mengunduh image dan dependency
+```
+
+**Verifikasi:** Baca README dari perspektif developer baru.
+
+---
+
+### Issue #20: 🟢 CI/CD tidak memvalidasi docker-compose syntax
+
+**File:** `.github/workflows/ci-cd.yml`
+**Masalah:**
+Pipeline CI hanya menjalankan lint Python dan unit test. Tidak ada validasi bahwa `docker-compose.yml` dan `Dockerfile` valid.
+
+**Langkah Perbaikan:**
+1. Buka `.github/workflows/ci-cd.yml`
+2. Tambahkan step di job `validate` setelah "Jalankan Unit Tests":
+```yaml
+      - name: Validate Docker Compose Config
+        continue-on-error: true
+        run: |
+          if command -v docker &> /dev/null; then
+            docker compose -f docker-compose.yml config --quiet
+          else
+            echo "Docker not available, skipping compose validation"
+          fi
+```
+
+**Verifikasi:** Push perubahan dan cek pipeline di GitHub Actions.
+
+---
+
+## Urutan Pengerjaan yang Disarankan
+
+Untuk efisiensi, kerjakan dalam urutan berikut:
+
+### Batch 1 — Quick Fixes (bisa selesai dalam 1 PR)
+- [ ] Issue #4 — Import `do_human_delay` yang hilang
+- [ ] Issue #16 — Hapus unused import `re`
+- [ ] Issue #12 — Konsistensikan `MAX_DAILY_REPLIES`
+- [ ] Issue #15 — Fix test path untuk Windows
+- [ ] Issue #17 — Hapus dead code `open_unreplied_tab`
+
+### Batch 2 — Security & Reliability
+- [ ] Issue #1 — Gemini API key di header
+- [ ] Issue #5 — Docker network external
+- [ ] Issue #11 — Reuse httpx Client
+- [ ] Issue #8 — Exponential backoff
+
+### Batch 3 — Observability & State Management
+- [ ] Issue #6 — Thread-safe bot_state
+- [ ] Issue #7 — Status health endpoint
+- [ ] Issue #13 — Pindahkan global ke state
+- [ ] Issue #9 — Rotasi unanswered file
+
+### Batch 4 — Feature Improvements
+- [ ] Issue #3 — Verifikasi pengiriman
+- [ ] Issue #10 — Store info di AI prompt
+- [ ] Issue #14 — DOM retry
+- [ ] Issue #18 — DEFAULT_REPLY fallback
+
+### Batch 5 — Documentation & CI
+- [ ] Issue #2 — Port mapping docs
+- [ ] Issue #19 — Prasyarat README
+- [ ] Issue #20 — Docker compose validation
+
+---
 
 ## Referensi
 
 - Repo sumber arsitektur: <https://github.com/cobacobiy/autochat>
 - Aplikasi target: <https://chat.ginee.com/>
 - Dokumentasi Playwright Python: <https://playwright.dev/python/docs/intro>
-

@@ -3,7 +3,7 @@ import logging
 import random
 
 from bot.config import GINEE_CHAT_URL
-from bot.selectors import (
+from bot.dom_selectors import (
     DROPDOWN_TRIGGER,
     POPUP_DISMISS_BUTTONS,
     SEMUA_PESAN_TAB,

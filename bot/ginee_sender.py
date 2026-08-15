@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from bot.config import DRY_RUN
-from bot.selectors import MESSAGE_INPUT, SEND_BUTTON, SEND_ERROR_NOTIF, first_visible
+from bot.dom_selectors import MESSAGE_INPUT, SEND_BUTTON, SEND_ERROR_NOTIF, first_visible
 from bot.utils import do_human_delay
 from bot.ginee_parser import parse_chat_messages
 

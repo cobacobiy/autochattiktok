@@ -91,28 +91,23 @@ jobs:
           path: ./
 
       - name: Deploy Preview Container
-        shell: python
+        shell: bash
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          import os
-          import subprocess
-
-          print(f"Deploying PR #{os.environ.get('PR_NUMBER')} preview to Windows Staging...")
+          echo "Deploying PR #${PR_NUMBER} preview to Windows Staging..."
 
           # Hapus container preview lama jika ada
-          subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
+          docker rm -f ginee-bot-preview 2>/dev/null || true
 
-          files_to_create = ["store_knowledge.txt", "unanswered_questions.txt"]
-          for filename in files_to_create:
-              if not os.path.exists(filename):
-                  open(filename, "w").close()
+          [ -f "store_knowledge.txt" ] || touch "store_knowledge.txt"
+          [ -f "unanswered_questions.txt" ] || touch "unanswered_questions.txt"
 
-          print("Building & starting preview container locally on Windows...")
-          subprocess.run(["docker", "compose", "up", "-d", "--build", "--remove-orphans"], check=True)
-          subprocess.run(["docker", "image", "prune", "-f"], check=False)
+          echo "Building & starting preview container locally on Windows..."
+          docker compose up -d --build --remove-orphans
+          docker image prune -f || true
 
-          print("\nPreview berhasil di-deploy ke Windows Staging via docker-compose!")
+          echo -e "\nPreview berhasil di-deploy ke Windows Staging via docker-compose!"
 
   # ============================================
   # Job 4: Cleanup Preview Container (Windows Staging)
@@ -123,12 +118,11 @@ jobs:
     steps:
       - name: Stop Preview Container
         continue-on-error: true
-        shell: python
+        shell: bash
         run: |
-          import subprocess
-          print("PR closed. Stopping Windows preview container...")
-          subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
-          subprocess.run(["docker", "compose", "down"], stderr=subprocess.DEVNULL)
+          echo "PR closed. Stopping Windows preview container..."
+          docker rm -f ginee-bot-preview 2>/dev/null || true
+          docker compose down 2>/dev/null || true
 
   # ============================================
   # Job 5: Deploy Production (HANYA push ke main)

@@ -2,7 +2,7 @@ import hashlib
 import logging
 
 from bot.config import ADMIN_KEYWORDS, SKIP_MESSAGES
-from bot.selectors import CHAT_ITEM, CHAT_PANEL
+from bot.dom_selectors import CHAT_ITEM, CHAT_PANEL
 from bot.utils import is_assistant_ai_msg
 
 log = logging.getLogger(__name__)

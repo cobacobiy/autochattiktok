@@ -109,7 +109,7 @@ async def auto_login_ginee(page) -> bool:
             await do_human_delay(page, min_ms=1500, max_ms=3000)
 
             user_input = page.locator(
-                "input[type='text'], input[placeholder*='Email'], input[placeholder*='Telepon'], input[name*='email'], input[name*='username']"
+                "input[placeholder*='Email'], input[placeholder*='Phone'], input[placeholder*='Telepon'], input[name*='email'], input[name*='username'], input[name*='account']"
             ).first
             if await user_input.is_visible(timeout=3000):
                 await user_input.click()

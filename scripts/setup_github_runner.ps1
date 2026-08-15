@@ -73,23 +73,11 @@ if (!(Test-Path -Path "config.cmd")) {
     Remove-Item -Path $ZipFile -Force
 }
 
-# 4. Configure runner
-Write-Host "[+] Configuring GitHub Actions Runner..." -ForegroundColor Green
-.\config.cmd --url $RepoUrl --token $RunnerToken --name $RunnerName --labels $Labels --work "_work" --unattended --replace
+# 4. Configure runner & Install Windows Service
+Write-Host "[+] Configuring GitHub Actions Runner & Installing Windows Service..." -ForegroundColor Green
+.\config.cmd --url $RepoUrl --token $RunnerToken --name $RunnerName --labels $Labels --work "_work" --runAsService --unattended --replace
 
-# 5. Install and start Windows Service
-Write-Host "[+] Installing Windows Service..." -ForegroundColor Green
-try {
-    .\svc.cmd install
-    .\svc.cmd start
-    Write-Host "=================================================================" -ForegroundColor Cyan
-    Write-Host " GitHub Actions Runner installed and started as service successfully!" -ForegroundColor Green
-    Write-Host " Service Status: .\svc.cmd status" -ForegroundColor Yellow
-    Write-Host "=================================================================" -ForegroundColor Cyan
-} catch {
-    Write-Host "[!] Note: Administrator privileges required to install service automatically." -ForegroundColor Red
-    Write-Host "    Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
-    Write-Host "      cd $RunnerDir" -ForegroundColor Yellow
-    Write-Host "      .\svc.cmd install" -ForegroundColor Yellow
-    Write-Host "      .\svc.cmd start" -ForegroundColor Yellow
-}
+Write-Host "=================================================================" -ForegroundColor Cyan
+Write-Host " GitHub Actions Runner installed and started as service successfully!" -ForegroundColor Green
+Write-Host " Status Check: Get-Service actions.runner.*" -ForegroundColor Yellow
+Write-Host "=================================================================" -ForegroundColor Cyan

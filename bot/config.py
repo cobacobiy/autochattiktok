@@ -46,14 +46,13 @@ KNOWLEDGE_PATH = os.getenv("KNOWLEDGE_PATH", "/app/store_knowledge.txt")
 
 BROWSER_LIFETIME_SECONDS = int(os.getenv("BROWSER_LIFETIME", "21600"))
 CACHE_EXPIRY_SECONDS = 86400
+FAILED_CACHE_EXPIRY_SECONDS = 300
 KNOWLEDGE_RELOAD_CYCLES = 120
 HEARTBEAT_CYCLES = 60
 MAX_CHAT_SCAN_ATTEMPTS = 30
 MAX_AI_REPLY_LENGTH = 600
 
 DEFAULT_REPLY = os.getenv("DEFAULT_REPLY", "Ada yang bisa dibantu?")
-
-AUTO_REPLIES = {}
 
 SKIP_MESSAGES = {
     "ok", "oke", "baik", "baik kak", "baik ka", "oke kak", "oke ka",

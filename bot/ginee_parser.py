@@ -142,9 +142,17 @@ async def parse_chat_messages(page) -> list[ChatMessage]:
 
             combined_style = f"{style} {parent_style} {grandparent_style}"
 
+            # Ensure we check the parent container's text as well to catch "[Balasan Otomatis]" labels placed outside the bubble
+            full_check_text = text
+            try:
+                parent_text = (await loc.locator("xpath=..").inner_text()).strip()
+                full_check_text += f" {parent_text}"
+            except Exception:
+                pass
+
             if "flex-start" in combined_style or "242, 245, 247" in combined_style:
                 direction = "buyer"
-            elif is_assistant_ai_msg(text):
+            elif is_assistant_ai_msg(full_check_text):
                 direction = "auto_reply"
             elif "flex-end" in combined_style or "238, 237, 254" in combined_style:
                 direction = "seller"

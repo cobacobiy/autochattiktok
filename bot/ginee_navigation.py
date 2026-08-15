@@ -59,7 +59,7 @@ async def is_single_marketplace_layout(page) -> bool:
     return False
 
 
-async def ensure_unified_chat_layout(page, max_retries=5) -> bool:
+async def ensure_unified_chat_layout(page, max_retries=1) -> bool:
     """Ensure page is in Unified All-Chat layout (Gambar 1). Refresh randomly if in Gambar 2."""
     for attempt in range(1, max_retries + 1):
         await dismiss_ginee_popups(page)

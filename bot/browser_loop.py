@@ -77,6 +77,7 @@ async def run_browser_loop():
                 await navigate_to_ginee_chat(page)
 
                 cycle_count = 0
+                bot_state.last_layout_check = time.time()
                 while True:
                     reset_daily_counters_if_needed()
                     cycle_count += 1

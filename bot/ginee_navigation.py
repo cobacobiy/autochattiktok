@@ -3,7 +3,7 @@ import logging
 import random
 
 from bot.config import GINEE_CHAT_URL
-from bot.selectors import (
+from bot.dom_selectors import (
     DROPDOWN_TRIGGER,
     POPUP_DISMISS_BUTTONS,
     SEMUA_PESAN_TAB,
@@ -11,6 +11,7 @@ from bot.selectors import (
     UNREPLIED_TAB,
     first_visible,
 )
+from bot.utils import do_human_delay
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ async def auto_login_ginee(page) -> bool:
             await do_human_delay(page, min_ms=1500, max_ms=3000)
 
             user_input = page.locator(
-                "input[type='text'], input[placeholder*='Email'], input[placeholder*='Telepon'], input[name*='email'], input[name*='username']"
+                "input#account, input[placeholder*='email' i], input[placeholder*='phone' i]"
             ).first
             if await user_input.is_visible(timeout=3000):
                 await user_input.click()
@@ -116,7 +117,7 @@ async def auto_login_ginee(page) -> bool:
                 await user_input.fill(GINEE_USERNAME)
                 await do_human_delay(page, min_ms=800, max_ms=1500)
 
-            pass_input = page.locator("input[type='password'], input[name*='password']").first
+            pass_input = page.locator("input#password, input[type='password'], input[name*='password']").first
             if await pass_input.is_visible(timeout=3000):
                 await pass_input.click()
                 await page.wait_for_timeout(500)
@@ -199,11 +200,3 @@ async def select_filter_unreplied(page) -> bool:
 async def select_filter_semua_pesan(page) -> bool:
     """Switch dropdown filter specifically to 'Semua Pesan' / 'All Message'."""
     return await select_filter_option(page, ["Semua Pesan", "All Message", "All"])
-
-
-async def open_unreplied_tab(page) -> bool:
-    """Dismiss popups, ensure Unified Chat layout, then select filter from dropdown menu."""
-    await ensure_unified_chat_layout(page)
-    return await select_filter_unreplied(page) or await select_filter_semua_pesan(page)
-
-

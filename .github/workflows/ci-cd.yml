@@ -44,6 +44,15 @@ jobs:
         run: |
           python -m pytest bot/tests/
 
+      - name: Validasi Docker Compose
+        continue-on-error: true
+        run: |
+          if command -v docker &> /dev/null; then
+            docker compose -f docker-compose.yml config --quiet
+          else
+            echo "Docker not available, skipping compose validation"
+          fi
+
   # ============================================
   # Job 2: Build & Upload Artifact Bawaan GitHub
   # ============================================
@@ -65,6 +74,7 @@ jobs:
             store_knowledge.txt
             unanswered_questions.txt
             .env.example
+          include-hidden-files: true
           retention-days: 7
 
   # ============================================
@@ -82,28 +92,45 @@ jobs:
           path: ./
 
       - name: Deploy Preview Container
-        shell: python
+        shell: powershell
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          STAGING_GINEE_USERNAME: ${{ secrets.STAGING_GINEE_USERNAME }}
+          STAGING_GINEE_PASSWORD: ${{ secrets.STAGING_GINEE_PASSWORD }}
         run: |
-          import os
-          import subprocess
-
-          print(f"Deploying PR #{os.environ.get('PR_NUMBER')} preview to Windows Staging...")
+          Write-Output "Deploying PR #$env:PR_NUMBER preview to Windows Staging..."
 
           # Hapus container preview lama jika ada
-          subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
+          docker rm -f ginee-bot-preview 2>&1 | Out-Null
 
-          files_to_create = ["store_knowledge.txt", "unanswered_questions.txt"]
-          for filename in files_to_create:
-              if not os.path.exists(filename):
-                  open(filename, "w").close()
+          $files = "store_knowledge.txt", "unanswered_questions.txt"
+          foreach ($file in $files) {
+              if (-not (Test-Path $file)) {
+                  New-Item -ItemType File -Name $file -Force | Out-Null
+              }
+          }
+          
+          if (-not (Test-Path ".env")) {
+              Copy-Item ".env.example" -Destination ".env"
+          }
 
-          print("Building & starting preview container locally on Windows...")
-          subprocess.run(["docker", "compose", "up", "-d", "--build", "--remove-orphans"], check=True)
-          subprocess.run(["docker", "image", "prune", "-f"], check=False)
+          # Inject staging secrets
+          $envContent = Get-Content .env
+          if (-not [string]::IsNullOrWhiteSpace($env:STAGING_GINEE_USERNAME)) {
+              $envContent = $envContent -replace "^GINEE_USERNAME=.*", "GINEE_USERNAME=$env:STAGING_GINEE_USERNAME"
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:STAGING_GINEE_PASSWORD)) {
+              $envContent = $envContent -replace "^GINEE_PASSWORD=.*", "GINEE_PASSWORD=$env:STAGING_GINEE_PASSWORD"
+          }
+          $envContent | Set-Content .env
 
-          print("\nPreview berhasil di-deploy ke Windows Staging via docker-compose!")
+          Write-Output "Building & starting preview container locally on Windows..."
+          docker compose up -d --build --remove-orphans
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          
+          docker image prune -f 2>&1 | Out-Null
+
+          Write-Output "Preview berhasil di-deploy ke Windows Staging via docker-compose!"
 
   # ============================================
   # Job 4: Cleanup Preview Container (Windows Staging)
@@ -114,12 +141,11 @@ jobs:
     steps:
       - name: Stop Preview Container
         continue-on-error: true
-        shell: python
+        shell: powershell
         run: |
-          import subprocess
-          print("PR closed. Stopping Windows preview container...")
-          subprocess.run(["docker", "rm", "-f", "ginee-bot-preview"], stderr=subprocess.DEVNULL)
-          subprocess.run(["docker", "compose", "down"], stderr=subprocess.DEVNULL)
+          Write-Output "PR closed. Stopping Windows preview container..."
+          docker rm -f ginee-bot-preview 2>&1 | Out-Null
+          docker compose down 2>&1 | Out-Null
 
   # ============================================
   # Job 5: Deploy Production (HANYA push ke main)
@@ -153,30 +179,7 @@ jobs:
 
           # Ensure .env file always exists
           if [ ! -f ".env" ]; then
-            if [ -f ".env.example" ]; then
-              cp .env.example .env
-            else
-              cat << EOF > .env
-GINEE_CHAT_URL=https://chat.ginee.com/
-PROFILE_DIR=/data/ginee-profile
-GINEE_USERNAME=
-GINEE_PASSWORD=
-HEADLESS=false
-DRY_RUN=false
-POLL_INTERVAL=8
-BROWSER_LIFETIME=21600
-MAX_DAILY_REPLIES=5000
-MAX_CACHE_SIZE=1000
-LOG_DIR=/data/logs
-LOG_FORMAT=text
-KNOWLEDGE_PATH=/app/store_knowledge.txt
-UNANSWERED_PATH=/app/unanswered_questions.txt
-
-AI_PROVIDER=ollama
-OLLAMA_URL=http://ollama:11434
-OLLAMA_MODEL=qwen2.5:3b
-EOF
-            fi
+            cp .env.example .env
           fi
 
           # Inject secrets into .env if present

@@ -33,8 +33,9 @@ class TestGineeSender(unittest.TestCase):
         import asyncio
         asyncio.run(run_test())
 
+    @patch("bot.ginee_sender.parse_chat_messages")
     @patch("bot.ginee_sender.first_visible")
-    def test_send_production_success(self, mock_first_visible):
+    def test_send_production_success(self, mock_first_visible, mock_parse):
         async def run_test():
             page = MagicMock()
             page.wait_for_timeout = AsyncMock()
@@ -44,6 +45,12 @@ class TestGineeSender(unittest.TestCase):
 
             send_btn = AsyncMock()
             send_btn.click = AsyncMock()
+
+            # Simulate verified seller bubble
+            from bot.ginee_parser import ChatMessage
+            mock_parse.return_value = [
+                ChatMessage(message_id=None, text="Halo kak", direction="seller")
+            ]
 
             # First call returns input, second call returns send button, third call returns no error
             mock_first_visible.side_effect = [

@@ -24,7 +24,6 @@ from bot.utils import do_human_delay
 
 log = logging.getLogger(__name__)
 
-_last_unreplied_filter_check_time = 0.0
 
 
 async def _process_conversations_in_current_view(page) -> int:
@@ -53,9 +52,25 @@ async def _process_conversations_in_current_view(page) -> int:
                 await conv.element.click(force=True)
                 await do_human_delay(page, min_ms=1500, max_ms=3000)
 
-            messages = await parse_chat_messages(page)
+            messages = None
+            for attempt in range(3):
+                messages = await parse_chat_messages(page)
+                if messages:
+                    break
+                log.debug("Retry %d: waiting for messages to load...", attempt + 1)
+                await page.wait_for_timeout(2000)
+
             if not messages:
-                log.info("No messages found in detail panel for %s", conv.conversation_id)
+                log.info("No messages found in detail panel for %s after retries", conv.conversation_id)
+                bot_state.replied_cache[prelim_hash] = time.time()
+                continue
+
+            # Ignore any trailing auto-reply messages
+            while messages and messages[-1].direction == "auto_reply":
+                messages.pop()
+
+            if not messages:
+                log.info("All messages were auto-replies, skipping.")
                 bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
@@ -100,9 +115,10 @@ async def _process_conversations_in_current_view(page) -> int:
             # Generate AI reply
             store_channel_info = f"{conv.store_name}:{conv.channel}"
             reply_text = generate_ai_reply(
-                prompt_context,
+                prompt_context=prompt_context,
                 conversation_hash=conv_hash,
                 store_channel=store_channel_info,
+                buyer_message=last_msg.text,
             )
 
             if not reply_text:
@@ -112,8 +128,11 @@ async def _process_conversations_in_current_view(page) -> int:
 
             # Double check before sending: re-parse last message
             recent_msgs = await parse_chat_messages(page)
+            while recent_msgs and recent_msgs[-1].direction == "auto_reply":
+                recent_msgs.pop()
+
             if recent_msgs and recent_msgs[-1].direction != "buyer":
-                log.warning("Abort send: Seller or system replied since initial snapshot")
+                log.warning("Abort send: Seller replied since initial snapshot")
                 bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
@@ -135,22 +154,28 @@ async def _process_conversations_in_current_view(page) -> int:
 
 async def process_unreplied_chats(page) -> int:
     """Process chats: Standby on 'Semua Pesan', and check 'Belum Dibalas' filter once every 15 minutes."""
-    global _last_unreplied_filter_check_time
+
     if bot_state.daily_reply_counter >= MAX_DAILY_REPLIES:
         log.warning("Daily reply limit reached (%d)", MAX_DAILY_REPLIES)
         return 0
 
-    await ensure_unified_chat_layout(page)
-    total_processed = 0
     now = time.time()
+    
+    # --- Scheduled Check: Ensure Unified Layout only once every hour (3600s) ---
+    if now - bot_state.last_layout_check >= 3600 or bot_state.last_layout_check == 0.0:
+        log.info("--- Hourly layout refresh check ---")
+        await ensure_unified_chat_layout(page)
+        bot_state.last_layout_check = now
+
+    total_processed = 0
 
     # --- Scheduled Check: Select "Belum Dibalas" only once every 15 minutes (900s) ---
-    if now - _last_unreplied_filter_check_time >= UNREPLIED_CHECK_INTERVAL_SECONDS or _last_unreplied_filter_check_time == 0.0:
+    if now - bot_state.last_unreplied_filter_check >= UNREPLIED_CHECK_INTERVAL_SECONDS or bot_state.last_unreplied_filter_check == 0.0:
         log.info("--- Pass 1: Scheduled 15-minute check on 'Belum Dibalas' filter ---")
         await select_filter_unreplied(page)
         processed_p1 = await _process_conversations_in_current_view(page)
         total_processed += processed_p1
-        _last_unreplied_filter_check_time = now
+        bot_state.last_unreplied_filter_check = now
 
         log.info("--- Pass 2: Switching filter back to 'Semua Pesan' ---")
         await select_filter_semua_pesan(page)

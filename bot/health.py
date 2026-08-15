@@ -21,19 +21,13 @@ class HealthHandler(BaseHTTPRequestHandler):
                 return GEMINI_MODEL
             return ANTHROPIC_MODEL
 
+        state_snap = bot_state.snapshot()
         status = {
-            "status": "ok",
             "uptime_seconds": int(time.time() - BOT_START_TIME),
             "ai_provider": AI_PROVIDER,
             "ai_model": _get_current_model(),
-            "knowledge_loaded": bool(bot_state.knowledge_base),
-            "knowledge_entries": len(bot_state.knowledge_answers),
-            "daily_replies": bot_state.daily_reply_counter,
-            "daily_skips": bot_state.daily_skip_count,
-            "daily_unanswered": bot_state.daily_unanswered_count,
-            "daily_ai_replied": bot_state.daily_ai_replied_count,
-            "cache_size": len(bot_state.replied_cache),
         }
+        status.update(state_snap)
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()

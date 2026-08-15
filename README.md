@@ -12,9 +12,18 @@ Aplikasi balasan otomatis berbasis AI untuk [Ginee Chat](https://chat.ginee.com/
 
 ## Informasi Port Service
 
-- **noVNC Web Interface**: `http://localhost:6085`
-- **VNC Direct Port**: `5905`
-- **Health API Status**: `http://localhost:7085`
+| Service | Port Host | Port Internal Container |
+|---------|-----------|------------------------|
+| noVNC Web Interface | `6085` | `6080` |
+| Health API Status | `7085` | `8080` |
+| VNC Direct Port | `5905` | `5900` |
+
+## Prasyarat
+
+- **Docker** >= 20.10 dan **Docker Compose** v2
+- **Python** >= 3.11 (untuk development/testing lokal)
+- **Git** untuk clone repository
+- **Koneksi Internet** untuk mengunduh image dan dependency
 
 ## Panduan Penggunaan
 

@@ -23,5 +23,4 @@ volumes:
 networks:
   default:
     name: autochat_default
-    external: true
 

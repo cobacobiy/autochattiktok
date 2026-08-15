@@ -74,6 +74,7 @@ jobs:
             store_knowledge.txt
             unanswered_questions.txt
             .env.example
+          include-hidden-files: true
           retention-days: 7
 
   # ============================================

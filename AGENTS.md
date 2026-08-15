@@ -37,6 +37,14 @@ This application provides intelligent automated responses for Ginee Chat (`chat.
 5. **Environment Configuration (`.env` / `.env.example`)**:
    - For Docker Compose operations, always ensure a `.env` or `.env.example` file containing required credentials and environment variables is created and maintained.
    - Never hardcode sensitive credentials directly inside `docker-compose.yml`.
+6. **DOM Selectors & Fragility**:
+   - Prefer robust, immutable IDs (e.g., `#account`, `#password`) over fragile attributes (e.g., `placeholder*='Email'`) that can fail due to case-sensitivity or i18n changes.
+   - Throttle aggressive UI recovery actions (like layout refreshes) to run maximally once per hour to prevent infinite loops when the upstream DOM changes unexpectedly.
+7. **Trailing Auto-Replies**:
+   - When parsing chat threads, strip trailing `auto_reply` messages (e.g., "[Balasan Otomatis Ginee]") from the end of the conversation history. This ensures the bot evaluates and responds to the *actual* last message from the buyer, rather than falsely aborting because a system/seller auto-reply was sent.
+8. **CI/CD Environments**:
+   - Code merged into `main` automatically deploys to **Production Linux**.
+   - Code pushed to a Pull Request branch deploys to **Staging Windows** (via local runner).
 
 ## Verification & Testing Workflows
 - **Run Unit Tests**:

@@ -71,6 +71,7 @@ jobs:
           path: |
             bot/
             docker-compose.yml
+            docker-compose.standalone.yml
             store_knowledge.txt
             unanswered_questions.txt
             .env.example

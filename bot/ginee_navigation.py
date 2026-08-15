@@ -11,6 +11,7 @@ from bot.selectors import (
     UNREPLIED_TAB,
     first_visible,
 )
+from bot.utils import do_human_delay
 
 log = logging.getLogger(__name__)
 
@@ -201,9 +202,6 @@ async def select_filter_semua_pesan(page) -> bool:
     return await select_filter_option(page, ["Semua Pesan", "All Message", "All"])
 
 
-async def open_unreplied_tab(page) -> bool:
-    """Dismiss popups, ensure Unified Chat layout, then select filter from dropdown menu."""
-    await ensure_unified_chat_layout(page)
-    return await select_filter_unreplied(page) or await select_filter_semua_pesan(page)
+
 
 

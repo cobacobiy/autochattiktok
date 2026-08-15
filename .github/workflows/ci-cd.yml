@@ -44,6 +44,15 @@ jobs:
         run: |
           python -m pytest bot/tests/
 
+      - name: Validasi Docker Compose
+        continue-on-error: true
+        run: |
+          if command -v docker &> /dev/null; then
+            docker compose -f docker-compose.yml config --quiet
+          else
+            echo "Docker not available, skipping compose validation"
+          fi
+
   # ============================================
   # Job 2: Build & Upload Artifact Bawaan GitHub
   # ============================================

@@ -63,5 +63,18 @@ async def send_ginee_reply(page, reply_text: str) -> bool:
             log.error("Send failed notification detected via %s", err_sel)
             return False
 
-        log.info("Reply sent successfully")
+        # Verify outgoing bubble appeared
+        try:
+            from bot.ginee_parser import parse_chat_messages
+            verify_msgs = await parse_chat_messages(page)
+            if verify_msgs:
+                last = verify_msgs[-1]
+                if last.direction == "seller" and reply_text[:50] in last.text:
+                    log.info("Reply verified: outgoing bubble confirmed")
+                    return True
+            log.warning("Reply verification: outgoing bubble not confirmed, treating as uncertain success")
+        except Exception as e:
+            log.warning("Reply verification failed: %s", e)
+
+        log.info("Reply sent successfully (unverified)")
         return True

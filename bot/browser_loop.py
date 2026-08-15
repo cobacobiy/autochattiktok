@@ -52,6 +52,7 @@ def cleanup_expired_cache():
 async def run_browser_loop():
     """Main Playwright loop with lifetime restart and error recovery."""
     load_knowledge_base()
+    consecutive_errors = 0
 
     while True:
         log.info("Starting new browser session cycle")
@@ -97,14 +98,20 @@ async def run_browser_loop():
 
                     is_logged_in = await check_login_status(page)
                     if not is_logged_in:
+                        bot_state.bot_status = "waiting_login"
                         log.warning(
                             "User not logged in or Ginee Chat root not detected. Waiting for manual login..."
                         )
                         await asyncio.sleep(15)
                         continue
 
+                    bot_state.bot_status = "running"
+
                     # Process unreplied chats
                     await process_unreplied_chats(page)
+                    
+                    bot_state.last_successful_cycle = time.time()
+                    consecutive_errors = 0
 
                     # Lifetime check (restart every 6 hours)
                     if time.time() - start_time > BROWSER_LIFETIME_SECONDS:
@@ -116,5 +123,8 @@ async def run_browser_loop():
                 await context.close()
 
             except Exception as e:
-                log.error("Unhandled error in browser loop: %s", e, exc_info=True)
-                await asyncio.sleep(10)
+                bot_state.bot_status = "error"
+                consecutive_errors += 1
+                backoff = min(10 * (2 ** consecutive_errors), 300)
+                log.error("Unhandled error in browser loop (attempt %d, backoff %ds): %s", consecutive_errors, backoff, e, exc_info=True)
+                await asyncio.sleep(backoff)

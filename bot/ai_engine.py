@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import shutil
 
 import httpx
 from tenacity import (
@@ -27,6 +28,10 @@ from bot.config import (
 from bot.state import bot_state
 
 log = logging.getLogger(__name__)
+
+_http_client = httpx.Client(timeout=120.0)
+
+MAX_UNANSWERED_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def get_auto_reply(message: str) -> str:
@@ -57,6 +62,13 @@ def log_unanswered_question(
             "question": question[:200],  # truncate long prompts
         }
         os.makedirs(os.path.dirname(UNANSWERED_PATH), exist_ok=True)
+        if os.path.exists(UNANSWERED_PATH):
+            size = os.path.getsize(UNANSWERED_PATH)
+            if size > MAX_UNANSWERED_FILE_SIZE:
+                backup = UNANSWERED_PATH + ".old"
+                shutil.move(UNANSWERED_PATH, backup)
+                log.info("Rotated unanswered file (%d bytes) to %s", size, backup)
+
         with open(UNANSWERED_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
         bot_state.daily_unanswered_count += 1
@@ -65,14 +77,16 @@ def log_unanswered_question(
         log.error("Failed to log unanswered question: %s", e)
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(store_channel: str = "") -> str:
     kb_str = (
         bot_state.knowledge_base
         if bot_state.knowledge_base
         else "Belum ada informasi tambahan."
     )
+    store_info = f"\nAnda sedang menjawab chat untuk toko: {store_channel}\n" if store_channel else ""
     return (
         "Anda adalah Customer Service resmi toko online di Ginee Chat.\n"
+        f"{store_info}"
         "Tugas Anda: Jawab pertanyaan pembeli secara ramah, sopan, dan singkat.\n\n"
         "ATURAN KETAT:\n"
         "1. Hanya gunakan fakta dari KNOWLEDGE BASE di bawah.\n"
@@ -90,19 +104,18 @@ def _build_system_prompt() -> str:
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
     reraise=True,
 )
-def call_ollama(prompt: str) -> str:
+def call_ollama(prompt: str, store_channel: str = "") -> str:
     url = f"{OLLAMA_URL}/api/generate"
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": f"{_build_system_prompt()}\n\nRiwayat Percakapan Chat:\n{prompt}\n\nJawaban CS:",
+        "prompt": f"{_build_system_prompt(store_channel)}\n\nRiwayat Percakapan Chat:\n{prompt}\n\nJawaban CS:",
         "stream": False,
         "keep_alive": -1,
         "options": {"temperature": 0.2, "num_predict": 250},
     }
-    with httpx.Client(timeout=120.0) as client:
-        resp = client.post(url, json=payload)
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
+    resp = _http_client.post(url, json=payload)
+    resp.raise_for_status()
+    return resp.json().get("response", "").strip()
 
 
 @retry(
@@ -111,23 +124,23 @@ def call_ollama(prompt: str) -> str:
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
     reraise=True,
 )
-def call_gemini(prompt: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+def call_gemini(prompt: str, store_channel: str = "") -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    headers = {"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"}
     payload = {
-        "system_instruction": {"parts": [{"text": _build_system_prompt()}]},
+        "system_instruction": {"parts": [{"text": _build_system_prompt(store_channel)}]},
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 250},
     }
-    with httpx.Client(timeout=120.0) as client:
-        resp = client.post(url, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        candidates = data.get("candidates", [])
-        if candidates and "content" in candidates[0]:
-            parts = candidates[0]["content"].get("parts", [])
-            if parts:
-                return parts[0].get("text", "").strip()
-        return ""
+    resp = _http_client.post(url, headers=headers, json=payload)
+    resp.raise_for_status()
+    data = resp.json()
+    candidates = data.get("candidates", [])
+    if candidates and "content" in candidates[0]:
+        parts = candidates[0]["content"].get("parts", [])
+        if parts:
+            return parts[0].get("text", "").strip()
+    return ""
 
 
 @retry(
@@ -136,7 +149,7 @@ def call_gemini(prompt: str) -> str:
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
     reraise=True,
 )
-def call_claude(prompt: str) -> str:
+def call_claude(prompt: str, store_channel: str = "") -> str:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -146,18 +159,17 @@ def call_claude(prompt: str) -> str:
     payload = {
         "model": ANTHROPIC_MODEL,
         "max_tokens": 250,
-        "system": _build_system_prompt(),
+        "system": _build_system_prompt(store_channel),
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
     }
-    with httpx.Client(timeout=120.0) as client:
-        resp = client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        content = data.get("content", [])
-        if content and "text" in content[0]:
-            return content[0]["text"].strip()
-        return ""
+    resp = _http_client.post(url, headers=headers, json=payload)
+    resp.raise_for_status()
+    data = resp.json()
+    content = data.get("content", [])
+    if content and "text" in content[0]:
+        return content[0]["text"].strip()
+    return ""
 
 
 def generate_ai_reply(
@@ -176,11 +188,11 @@ def generate_ai_reply(
     raw_response = ""
     try:
         if AI_PROVIDER == "ollama":
-            raw_response = call_ollama(buyer_message)
+            raw_response = call_ollama(buyer_message, store_channel)
         elif AI_PROVIDER == "gemini":
-            raw_response = call_gemini(buyer_message)
+            raw_response = call_gemini(buyer_message, store_channel)
         elif AI_PROVIDER == "claude":
-            raw_response = call_claude(buyer_message)
+            raw_response = call_claude(buyer_message, store_channel)
         else:
             log.error("Unknown AI_PROVIDER: %s", AI_PROVIDER)
             return ""
@@ -202,7 +214,7 @@ def generate_ai_reply(
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TIDAK_TAHU"
         )
-        return ""
+        return DEFAULT_REPLY
 
     if len(response) > MAX_AI_REPLY_LENGTH:
         log.warning(
@@ -213,7 +225,7 @@ def generate_ai_reply(
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TOO_LONG"
         )
-        return ""
+        return DEFAULT_REPLY
 
     bot_state.daily_ai_replied_count += 1
     return response

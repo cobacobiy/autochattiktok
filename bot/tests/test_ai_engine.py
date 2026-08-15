@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -19,7 +20,7 @@ class TestAIEngine(unittest.TestCase):
         self.assertEqual(reply, "Pengiriman dilakukan dari Penjaringan, Jakarta Utara.")
 
     def test_log_unanswered_question(self):
-        test_path = "/tmp/test_unanswered.txt"
+        test_path = os.path.join(tempfile.gettempdir(), "test_unanswered.txt")
         ai_engine.UNANSWERED_PATH = test_path
         if os.path.exists(test_path):
             os.remove(test_path)
@@ -38,13 +39,13 @@ class TestAIEngine(unittest.TestCase):
     @patch("bot.ai_engine.call_ollama")
     def test_generate_ai_reply_tidak_tahu(self, mock_call):
         mock_call.return_value = "TIDAK_TAHU"
-        test_path = "/tmp/test_unanswered_tt.txt"
+        test_path = os.path.join(tempfile.gettempdir(), "test_unanswered_tt.txt")
         ai_engine.UNANSWERED_PATH = test_path
         if os.path.exists(test_path):
             os.remove(test_path)
 
         reply = ai_engine.generate_ai_reply("Berapa berat paket ini?", "hash_tt", "store:tiktok")
-        self.assertEqual(reply, "")
+        self.assertEqual(reply, ai_engine.DEFAULT_REPLY)
 
         if os.path.exists(test_path):
             os.remove(test_path)
@@ -52,13 +53,13 @@ class TestAIEngine(unittest.TestCase):
     @patch("bot.ai_engine.call_ollama")
     def test_generate_ai_reply_too_long(self, mock_call):
         mock_call.return_value = "A" * 700
-        test_path = "/tmp/test_unanswered_long.txt"
+        test_path = os.path.join(tempfile.gettempdir(), "test_unanswered_long.txt")
         ai_engine.UNANSWERED_PATH = test_path
         if os.path.exists(test_path):
             os.remove(test_path)
 
         reply = ai_engine.generate_ai_reply("Tolong jelaskan secara detail", "hash_long", "store:tiktok")
-        self.assertEqual(reply, "")
+        self.assertEqual(reply, ai_engine.DEFAULT_REPLY)
 
         if os.path.exists(test_path):
             os.remove(test_path)

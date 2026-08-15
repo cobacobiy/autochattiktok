@@ -147,9 +147,15 @@ async def process_unreplied_chats(page) -> int:
         log.warning("Daily reply limit reached (%d)", MAX_DAILY_REPLIES)
         return 0
 
-    await ensure_unified_chat_layout(page)
-    total_processed = 0
     now = time.time()
+    
+    # --- Scheduled Check: Ensure Unified Layout only once every hour (3600s) ---
+    if now - bot_state.last_layout_check >= 3600 or bot_state.last_layout_check == 0.0:
+        log.info("--- Hourly layout refresh check ---")
+        await ensure_unified_chat_layout(page)
+        bot_state.last_layout_check = now
+
+    total_processed = 0
 
     # --- Scheduled Check: Select "Belum Dibalas" only once every 15 minutes (900s) ---
     if now - bot_state.last_unreplied_filter_check >= UNREPLIED_CHECK_INTERVAL_SECONDS or bot_state.last_unreplied_filter_check == 0.0:

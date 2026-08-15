@@ -20,6 +20,7 @@ class BotState:
     last_error: str = ""
     last_successful_cycle: float = 0.0
     last_unreplied_filter_check: float = 0.0
+    last_layout_check: float = 0.0
 
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 

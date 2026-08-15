@@ -42,8 +42,20 @@ async def dismiss_ginee_popups(page) -> bool:
 
 async def is_single_marketplace_layout(page) -> bool:
     """Check if page loaded in Single Marketplace layout (Gambar 2)."""
-    # TEMPORARILY DISABLED: The 'polymerization' icon check is too fragile and causes infinite refresh loops
-    # if Ginee updates their UI. We will assume the layout is correct for now.
+    try:
+        menu_items = await page.locator(".ant-menu-item").all()
+        if not menu_items:
+            return False
+
+        first_html = (await menu_items[0].inner_html()).lower()
+        # In Unified All-Chat layout (Gambar 1), menu item 0 contains 'polymerization' icon
+        if "polymerization" in first_html:
+            return False
+
+        # If polymerization icon is missing or single channel icon is active
+        return True
+    except Exception as e:
+        log.debug("Error checking single marketplace layout: %s", e)
     return False
 
 

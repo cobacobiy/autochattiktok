@@ -11,7 +11,7 @@ class TestAIEngine(unittest.TestCase):
 
     def setUp(self):
         bot_state.knowledge_answers = {
-            "pengiriman": "Penjaringan Jakarta Utara",
+            "pengiriman": "Pengiriman dilakukan dari Penjaringan, Jakarta Utara.",
             "stok": "Stok ready silakan diorder",
         }
 

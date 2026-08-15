@@ -125,7 +125,14 @@ jobs:
           $envContent | Set-Content .env
 
           Write-Output "Building & starting preview container locally on Windows..."
-          docker compose up -d --build --remove-orphans
+          $ollamaExists = docker ps -a --format '{{.Names}}' | Select-String -Pattern "^ollama$"
+          if ($ollamaExists) {
+              Write-Output "Ollama is already running. Using shared configuration."
+              docker compose -f docker-compose.yml up -d --build --remove-orphans
+          } else {
+              Write-Output "Ollama is not running. Starting standalone configuration with Ollama."
+              docker compose -f docker-compose.standalone.yml up -d --build --remove-orphans
+          }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           
           docker image prune -f 2>&1 | Out-Null
@@ -193,7 +200,13 @@ jobs:
           docker rm -f ginee-bot-preview 2>/dev/null || true
 
           echo "Building & starting production container..."
-          docker compose up -d --build --remove-orphans
+          if docker ps -a --format '{{.Names}}' | grep -Eq "^ollama$"; then
+              echo "Ollama is already running. Using shared configuration."
+              docker compose -f docker-compose.yml up -d --build --remove-orphans
+          else
+              echo "Ollama is not running. Starting standalone configuration with Ollama."
+              docker compose -f docker-compose.standalone.yml up -d --build --remove-orphans
+          fi
           docker image prune -f
 
           echo -e "\nDeploy production selesai!\nnoVNC: http://<SERVER_IP>:6085"

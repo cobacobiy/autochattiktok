@@ -35,11 +35,21 @@ cp .env.example .env
 Lalu edit isi `.env` sesuai kredensial Anda.
 
 ### 2. Build & Jalankan
-Untuk menyalakan pertama kali (wajib build ulang image Docker):
+Karena Ginee Bot dirancang cerdas untuk menghemat VRAM, cara Anda menyalakannya bergantung pada ketersediaan Ollama di komputer Anda:
+
+**A. Jika Anda belum memiliki Ollama (Komputer Baru / Berdiri Sendiri):**
+```bash
+docker compose -f docker-compose.standalone.yml up -d --build
+```
+*(Ini akan otomatis menginstal Ollama bertenaga GPU dan bot Ginee sekaligus).*
+
+**B. Jika Anda menjalankan ini berdampingan dengan Shopee Bot (`cobacobiy/autochat`) di satu server:**
 ```bash
 docker compose up -d --build
 ```
-*(Catatan: Untuk menyalakan di kemudian hari jika komputer mati, Anda cukup mengetikkan `docker compose up -d` tanpa `--build`)*
+*(Ini akan menggunakan jaringan berbagi dan numpang ke Ollama milik Shopee untuk menghemat 3GB VRAM!)*
+
+*(Catatan: Untuk menyalakan di kemudian hari jika komputer mati, Anda cukup mengetikkan ulang perintah di atas tanpa `--build`)*
 
 ### 3. Login Manual via noVNC
 Buka browser dan akses `http://localhost:6085`. Selesaikan proses login akun Ginee secara manual. Sesi login akan tersimpan otomatis di persistent profile `/data/ginee-profile`.

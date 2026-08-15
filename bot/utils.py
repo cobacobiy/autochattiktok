@@ -38,7 +38,6 @@ def is_assistant_ai_msg(text: str) -> bool:
         or "auto-reply" in t
         or "auto reply" in t
         or "balasan otomatis" in t
-        or "pesan ini tidak didukung" in t
         or "kami akan segera membalas" in t
         or "we will reply shortly" in t
     )

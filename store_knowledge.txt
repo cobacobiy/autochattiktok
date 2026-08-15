@@ -12,5 +12,9 @@ J: Pengiriman Jabodetabek 1-2 hari kerja, luar kota 2-5 hari kerja tergantung ek
 
 T: apakah bisa retur atau tukar barang
 J: Bisa kak, wajib melampirkan video unboxing utuh tanpa jeda maksimal 2x24 jam setelah paket diterima.
+
 T: order di 2 akun berbeda / sy ada order 2 akun
 J: Baik kak, akan segera kami cek ya. Terima kasih!
+
+T: pesan ini tidak didukung untuk saat ini, silakan buka dashboard platform untuk melihat pesan ini
+J: Halo kak, ada yang bisa dibantu? Mohon ketik ulang pertanyaannya di sini ya kak, karena pesan sebelumnya tidak terbaca oleh sistem kami.

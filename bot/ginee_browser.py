@@ -65,6 +65,15 @@ async def _process_conversations_in_current_view(page) -> int:
                 bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 
+            # Ignore any trailing auto-reply messages
+            while messages and messages[-1].direction == "auto_reply":
+                messages.pop()
+
+            if not messages:
+                log.info("All messages were auto-replies, skipping.")
+                bot_state.replied_cache[prelim_hash] = time.time()
+                continue
+
             last_msg = messages[-1]
             if last_msg.direction != "buyer":
                 log.info(
@@ -119,8 +128,11 @@ async def _process_conversations_in_current_view(page) -> int:
 
             # Double check before sending: re-parse last message
             recent_msgs = await parse_chat_messages(page)
+            while recent_msgs and recent_msgs[-1].direction == "auto_reply":
+                recent_msgs.pop()
+
             if recent_msgs and recent_msgs[-1].direction != "buyer":
-                log.warning("Abort send: Seller or system replied since initial snapshot")
+                log.warning("Abort send: Seller replied since initial snapshot")
                 bot_state.replied_cache[prelim_hash] = time.time()
                 continue
 

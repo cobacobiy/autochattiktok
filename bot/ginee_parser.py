@@ -144,7 +144,9 @@ async def parse_chat_messages(page) -> list[ChatMessage]:
 
             if "flex-start" in combined_style or "242, 245, 247" in combined_style:
                 direction = "buyer"
-            elif "flex-end" in combined_style or "238, 237, 254" in combined_style or is_assistant_ai_msg(text):
+            elif is_assistant_ai_msg(text):
+                direction = "auto_reply"
+            elif "flex-end" in combined_style or "238, 237, 254" in combined_style:
                 direction = "seller"
             else:
                 direction = "buyer"

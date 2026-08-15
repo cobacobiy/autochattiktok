@@ -91,23 +91,27 @@ jobs:
           path: ./
 
       - name: Deploy Preview Container
-        shell: bash
+        shell: powershell
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          echo "Deploying PR #${PR_NUMBER} preview to Windows Staging..."
+          Write-Output "Deploying PR #$env:PR_NUMBER preview to Windows Staging..."
 
           # Hapus container preview lama jika ada
-          docker rm -f ginee-bot-preview 2>/dev/null || true
+          docker rm -f ginee-bot-preview 2>&1 | Out-Null
 
-          [ -f "store_knowledge.txt" ] || touch "store_knowledge.txt"
-          [ -f "unanswered_questions.txt" ] || touch "unanswered_questions.txt"
+          $files = "store_knowledge.txt", "unanswered_questions.txt"
+          foreach ($file in $files) {
+              if (-not (Test-Path $file)) {
+                  New-Item -ItemType File -Name $file -Force | Out-Null
+              }
+          }
 
-          echo "Building & starting preview container locally on Windows..."
+          Write-Output "Building & starting preview container locally on Windows..."
           docker compose up -d --build --remove-orphans
-          docker image prune -f || true
+          docker image prune -f 2>&1 | Out-Null
 
-          echo -e "\nPreview berhasil di-deploy ke Windows Staging via docker-compose!"
+          Write-Output "Preview berhasil di-deploy ke Windows Staging via docker-compose!"
 
   # ============================================
   # Job 4: Cleanup Preview Container (Windows Staging)
@@ -118,11 +122,11 @@ jobs:
     steps:
       - name: Stop Preview Container
         continue-on-error: true
-        shell: bash
+        shell: powershell
         run: |
-          echo "PR closed. Stopping Windows preview container..."
-          docker rm -f ginee-bot-preview 2>/dev/null || true
-          docker compose down 2>/dev/null || true
+          Write-Output "PR closed. Stopping Windows preview container..."
+          docker rm -f ginee-bot-preview 2>&1 | Out-Null
+          docker compose down 2>&1 | Out-Null
 
   # ============================================
   # Job 5: Deploy Production (HANYA push ke main)

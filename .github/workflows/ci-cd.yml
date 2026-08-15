@@ -94,6 +94,8 @@ jobs:
         shell: powershell
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          STAGING_GINEE_USERNAME: ${{ secrets.STAGING_GINEE_USERNAME }}
+          STAGING_GINEE_PASSWORD: ${{ secrets.STAGING_GINEE_PASSWORD }}
         run: |
           Write-Output "Deploying PR #$env:PR_NUMBER preview to Windows Staging..."
 
@@ -110,6 +112,16 @@ jobs:
           if (-not (Test-Path ".env")) {
               Copy-Item ".env.example" -Destination ".env"
           }
+
+          # Inject staging secrets
+          $envContent = Get-Content .env
+          if (-not [string]::IsNullOrWhiteSpace($env:STAGING_GINEE_USERNAME)) {
+              $envContent = $envContent -replace "^GINEE_USERNAME=.*", "GINEE_USERNAME=$env:STAGING_GINEE_USERNAME"
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:STAGING_GINEE_PASSWORD)) {
+              $envContent = $envContent -replace "^GINEE_PASSWORD=.*", "GINEE_PASSWORD=$env:STAGING_GINEE_PASSWORD"
+          }
+          $envContent | Set-Content .env
 
           Write-Output "Building & starting preview container locally on Windows..."
           docker compose up -d --build --remove-orphans

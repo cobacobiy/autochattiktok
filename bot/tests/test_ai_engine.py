@@ -45,7 +45,13 @@ class TestAIEngine(unittest.TestCase):
             os.remove(test_path)
 
         reply = ai_engine.generate_ai_reply("Berapa berat paket ini?", "hash_tt", "store:tiktok")
-        self.assertEqual(reply, ai_engine.DEFAULT_REPLY)
+        self.assertEqual(reply, "")
+
+        self.assertTrue(os.path.exists(test_path), "Unanswered file should be created")
+        with open(test_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("TIDAK_TAHU", content)
+            self.assertIn("Berapa berat paket ini?", content)
 
         if os.path.exists(test_path):
             os.remove(test_path)
@@ -59,7 +65,13 @@ class TestAIEngine(unittest.TestCase):
             os.remove(test_path)
 
         reply = ai_engine.generate_ai_reply("Tolong jelaskan secara detail", "hash_long", "store:tiktok")
-        self.assertEqual(reply, ai_engine.DEFAULT_REPLY)
+        self.assertEqual(reply, "")
+
+        self.assertTrue(os.path.exists(test_path), "Unanswered file should be created")
+        with open(test_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("TOO_LONG", content)
+            self.assertIn("Tolong jelaskan secara detail", content)
 
         if os.path.exists(test_path):
             os.remove(test_path)

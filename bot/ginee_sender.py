@@ -4,6 +4,7 @@ import logging
 from bot.config import DRY_RUN
 from bot.selectors import MESSAGE_INPUT, SEND_BUTTON, SEND_ERROR_NOTIF, first_visible
 from bot.utils import do_human_delay
+from bot.ginee_parser import parse_chat_messages
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +66,6 @@ async def send_ginee_reply(page, reply_text: str) -> bool:
 
         # Verify outgoing bubble appeared
         try:
-            from bot.ginee_parser import parse_chat_messages
             verify_msgs = await parse_chat_messages(page)
             if verify_msgs:
                 last = verify_msgs[-1]

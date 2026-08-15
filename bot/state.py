@@ -14,13 +14,13 @@ class BotState:
     sent_messages: dict[str, set[str]] = field(default_factory=dict)
     knowledge_base: str = ""
     knowledge_answers: dict = field(default_factory=dict)
-    
+
     # State fields for health monitoring and browser loop
     bot_status: str = "starting"
     last_error: str = ""
     last_successful_cycle: float = 0.0
     last_unreplied_filter_check: float = 0.0
-    
+
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def snapshot(self) -> dict:

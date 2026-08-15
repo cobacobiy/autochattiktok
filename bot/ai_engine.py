@@ -29,7 +29,14 @@ from bot.state import bot_state
 
 log = logging.getLogger(__name__)
 
-_http_client = httpx.Client(timeout=120.0)
+_http_client: httpx.Client | None = None
+
+def _get_http_client() -> httpx.Client:
+    """Get or create reusable httpx client."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.Client(timeout=120.0)
+    return _http_client
 
 MAX_UNANSWERED_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -61,7 +68,9 @@ def log_unanswered_question(
             "reason": reason,
             "question": question[:200],  # truncate long prompts
         }
-        os.makedirs(os.path.dirname(UNANSWERED_PATH), exist_ok=True)
+        parent_dir = os.path.dirname(UNANSWERED_PATH)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         if os.path.exists(UNANSWERED_PATH):
             size = os.path.getsize(UNANSWERED_PATH)
             if size > MAX_UNANSWERED_FILE_SIZE:
@@ -113,7 +122,7 @@ def call_ollama(prompt: str, store_channel: str = "") -> str:
         "keep_alive": -1,
         "options": {"temperature": 0.2, "num_predict": 250},
     }
-    resp = _http_client.post(url, json=payload)
+    resp = _get_http_client().post(url, json=payload)
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
 
@@ -132,7 +141,7 @@ def call_gemini(prompt: str, store_channel: str = "") -> str:
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 250},
     }
-    resp = _http_client.post(url, headers=headers, json=payload)
+    resp = _get_http_client().post(url, headers=headers, json=payload)
     resp.raise_for_status()
     data = resp.json()
     candidates = data.get("candidates", [])
@@ -163,7 +172,7 @@ def call_claude(prompt: str, store_channel: str = "") -> str:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
     }
-    resp = _http_client.post(url, headers=headers, json=payload)
+    resp = _get_http_client().post(url, headers=headers, json=payload)
     resp.raise_for_status()
     data = resp.json()
     content = data.get("content", [])
@@ -214,7 +223,7 @@ def generate_ai_reply(
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TIDAK_TAHU"
         )
-        return DEFAULT_REPLY
+        return ""
 
     if len(response) > MAX_AI_REPLY_LENGTH:
         log.warning(
@@ -225,7 +234,7 @@ def generate_ai_reply(
         log_unanswered_question(
             buyer_message, conversation_hash, store_channel, reason="TOO_LONG"
         )
-        return DEFAULT_REPLY
+        return ""
 
     bot_state.daily_ai_replied_count += 1
     return response

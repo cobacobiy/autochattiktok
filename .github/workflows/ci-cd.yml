@@ -162,30 +162,7 @@ jobs:
 
           # Ensure .env file always exists
           if [ ! -f ".env" ]; then
-            if [ -f ".env.example" ]; then
-              cp .env.example .env
-            else
-              cat << EOF > .env
-GINEE_CHAT_URL=https://chat.ginee.com/
-PROFILE_DIR=/data/ginee-profile
-GINEE_USERNAME=
-GINEE_PASSWORD=
-HEADLESS=false
-DRY_RUN=false
-POLL_INTERVAL=8
-BROWSER_LIFETIME=21600
-MAX_DAILY_REPLIES=5000
-MAX_CACHE_SIZE=1000
-LOG_DIR=/data/logs
-LOG_FORMAT=text
-KNOWLEDGE_PATH=/app/store_knowledge.txt
-UNANSWERED_PATH=/app/unanswered_questions.txt
-
-AI_PROVIDER=ollama
-OLLAMA_URL=http://ollama:11434
-OLLAMA_MODEL=qwen2.5:3b
-EOF
-            fi
+            cp .env.example .env
           fi
 
           # Inject secrets into .env if present

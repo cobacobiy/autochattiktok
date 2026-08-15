@@ -200,8 +200,3 @@ async def select_filter_unreplied(page) -> bool:
 async def select_filter_semua_pesan(page) -> bool:
     """Switch dropdown filter specifically to 'Semua Pesan' / 'All Message'."""
     return await select_filter_option(page, ["Semua Pesan", "All Message", "All"])
-
-
-
-
-

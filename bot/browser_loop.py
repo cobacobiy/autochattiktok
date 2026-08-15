@@ -111,6 +111,7 @@ async def run_browser_loop():
                     await process_unreplied_chats(page)
                     
                     bot_state.last_successful_cycle = time.time()
+                    bot_state.last_error = ""
                     consecutive_errors = 0
 
                     # Lifetime check (restart every 6 hours)
@@ -124,6 +125,7 @@ async def run_browser_loop():
 
             except Exception as e:
                 bot_state.bot_status = "error"
+                bot_state.last_error = str(e)[:200]
                 consecutive_errors += 1
                 backoff = min(10 * (2 ** consecutive_errors), 300)
                 log.error("Unhandled error in browser loop (attempt %d, backoff %ds): %s", consecutive_errors, backoff, e, exc_info=True)

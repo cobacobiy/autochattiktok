@@ -109,7 +109,7 @@ async def auto_login_ginee(page) -> bool:
             await do_human_delay(page, min_ms=1500, max_ms=3000)
 
             user_input = page.locator(
-                "input[placeholder*='Email'], input[placeholder*='Phone'], input[placeholder*='Telepon'], input[name*='email'], input[name*='username'], input[name*='account']"
+                "input#account, input[placeholder*='email' i], input[placeholder*='phone' i]"
             ).first
             if await user_input.is_visible(timeout=3000):
                 await user_input.click()
@@ -117,7 +117,7 @@ async def auto_login_ginee(page) -> bool:
                 await user_input.fill(GINEE_USERNAME)
                 await do_human_delay(page, min_ms=800, max_ms=1500)
 
-            pass_input = page.locator("input[type='password'], input[name*='password']").first
+            pass_input = page.locator("input#password, input[type='password'], input[name*='password']").first
             if await pass_input.is_visible(timeout=3000):
                 await pass_input.click()
                 await page.wait_for_timeout(500)

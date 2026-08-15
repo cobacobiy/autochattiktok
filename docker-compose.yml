@@ -5,11 +5,6 @@ services:
     shm_size: 2gb
     restart: unless-stopped
     env_file: .env
-    environment:
-      - OLLAMA_URL=http://ollama-ginee:11434
-    depends_on:
-      ollama-ginee:
-        condition: service_healthy
     volumes:
       - ginee-profile:/data/ginee-profile
       - ./logs:/data/logs
@@ -22,47 +17,10 @@ services:
     networks:
       - default
 
-  ollama-ginee:
-    image: ollama/ollama:latest
-    container_name: ollama-ginee
-    environment:
-      - OLLAMA_KEEP_ALIVE=1h
-    volumes:
-      - ollama-data-ginee:/root/.ollama
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    networks:
-      - default
-
-  ollama-init-ginee:
-    image: ollama/ollama:latest
-    container_name: ollama-init-ginee
-    restart: "no"
-    depends_on:
-      ollama-ginee:
-        condition: service_healthy
-    environment:
-      - OLLAMA_HOST=http://ollama-ginee:11434
-    entrypoint: [ "sh", "-c", "until ollama list; do sleep 1; done && ollama pull qwen2.5:3b" ]
-    networks:
-      - default
-
 volumes:
   ginee-profile:
-  ollama-data-ginee:
 
 networks:
   default:
-    name: autochattiktok_default
+    name: autochat_default
+    external: true

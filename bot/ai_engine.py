@@ -217,7 +217,7 @@ def generate_ai_reply(
         log_unanswered_question(
             buyer_message or prompt_context, conversation_hash, store_channel, reason="AI_ERROR"
         )
-        return ""
+        return DEFAULT_REPLY
 
     response = raw_response.strip()
     for prefix in ["Jawaban CS:", "CS:", "Jawaban:"]:
@@ -226,22 +226,22 @@ def generate_ai_reply(
 
     # Safety checks: Strict TIDAK_TAHU enforcement
     if "TIDAK_TAHU" in response or not response:
-        log.info("AI returned TIDAK_TAHU or empty response")
+        log.info("AI returned TIDAK_TAHU or empty response. Falling back to DEFAULT_REPLY.")
         log_unanswered_question(
             buyer_message or prompt_context, conversation_hash, store_channel, reason="TIDAK_TAHU"
         )
-        return ""
+        return DEFAULT_REPLY
 
     if len(response) > MAX_AI_REPLY_LENGTH:
         log.warning(
-            "AI response exceeded max length (%d > %d)",
+            "AI response exceeded max length (%d > %d). Falling back to DEFAULT_REPLY.",
             len(response),
             MAX_AI_REPLY_LENGTH,
         )
         log_unanswered_question(
             buyer_message or prompt_context, conversation_hash, store_channel, reason="TOO_LONG"
         )
-        return ""
+        return DEFAULT_REPLY
 
     bot_state.daily_ai_replied_count += 1
     return response

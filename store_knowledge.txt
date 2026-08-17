@@ -33,3 +33,16 @@ J: Untuk info ketersediaan stok terbaru, silakan langsung cek halaman produk kam
 
 T: garansi / apakah ada garansi
 J: Informasi garansi bisa dilihat di deskripsi produk ya kak. Jika ada pertanyaan lebih lanjut silakan ditanyakan 😊
+
+T: kak kira kira sampe kapan / kapan paket sampai / estimasi sampai / sampe kpn
+J: Estimasi pengiriman untuk area Jabodetabek 1-2 hari kerja, dan luar kota 2-5 hari kerja ya kak.
+
+T: kapan dikirim / jam berapa dikirim
+J: Pesanan yang masuk sebelum pukul 14.00 WIB akan diproses dan dikirim di hari yang sama ya kak.
+
+T: hari ini libur / apakah hari ini libur
+J: Jam operasional kami Senin - Sabtu pukul 08.00 - 17.00 WIB. Hari Minggu dan tanggal merah libur ya kak.
+
+T: lacak paket / cek resi / paket saya sudah sampai mana
+J: Untuk mengecek posisi dan pergerakan paket terbaru, silakan cek langsung pada rincian pesanan di aplikasi ya kak.
+

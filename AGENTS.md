@@ -43,9 +43,11 @@ This application provides intelligent automated responses for Ginee Chat (`chat.
    - Throttle aggressive UI recovery actions (like layout refreshes) to run maximally once per hour to prevent infinite loops when the upstream DOM changes unexpectedly.
 7. **Trailing Auto-Replies**:
    - When parsing chat threads, strip trailing `auto_reply` messages (e.g., "[Balasan Otomatis Ginee]") from the end of the conversation history. This ensures the bot evaluates and responds to the *actual* last message from the buyer, rather than falsely aborting because a system/seller auto-reply was sent.
-8. **CI/CD Environments**:
-   - Code merged into `main` automatically deploys to **Production Linux**.
-   - Code pushed to a Pull Request branch deploys to **Staging Windows** (via local runner).
+8. **Environment Infrastructure Policy**:
+   - **Coding Device (Local)**: This local machine is strictly for **coding, development, and unit testing**.
+   - **Staging Environment (Windows)**: Code pushed to a Pull Request deploys to **Staging Windows** (`[self-hosted, windows]`).
+   - **Production Environment (Server 135 Linux)**: Code merged into `main` automatically deploys to **Production Linux Server 135** (`[self-hosted, 135gemini2]`).
+   - **Multiplatform Docker & Credentials**: Always use Docker Compose for multiplatform deployments across Linux and Windows. Maintain secrets strictly in `.env` created from `.env.example`. Never hardcode sensitive credentials inside `docker-compose.yml` or source code.
 9. **MANDATORY PRE-PUSH UNIT TESTING**:
    - **NEVER** commit or push code to GitHub without first running and verifying the unit test suite:
      ```bash

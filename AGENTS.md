@@ -46,7 +46,7 @@ This application provides intelligent automated responses for Ginee Chat (`chat.
 8. **Environment Infrastructure Policy**:
    - **Coding Device (Local)**: This local machine is strictly for **coding, development, and unit testing**.
    - **Staging Environment (Windows)**: Code pushed to a Pull Request deploys to **Staging Windows** (`[self-hosted, windows]`).
-   - **Production Environment (Server 135 Linux)**: Code merged into `main` automatically deploys to **Production Linux Server 135** (`[self-hosted, 135gemini2]`).
+   - **Production Environment (Server 226 Linux)**: Code merged into `main` automatically deploys to **Production Linux Server 226** (`[self-hosted, 226node2]`).
    - **Multiplatform Docker & Credentials**: Always use Docker Compose for multiplatform deployments across Linux and Windows. Maintain secrets strictly in `.env` created from `.env.example`. Never hardcode sensitive credentials inside `docker-compose.yml` or source code.
 9. **MANDATORY PRE-PUSH UNIT TESTING**:
    - **NEVER** commit or push code to GitHub without first running and verifying the unit test suite:

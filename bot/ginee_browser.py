@@ -137,6 +137,21 @@ async def _process_conversations_in_current_view(page) -> int:
                 log.warning("AI returned empty reply (unexpected). Falling back to DEFAULT_REPLY.")
                 reply_text = DEFAULT_REPLY
 
+            if reply_text == DEFAULT_REPLY:
+                has_previous_default = any(
+                    m.direction in ("seller", "auto_reply")
+                    and DEFAULT_REPLY.strip().lower() in m.text.strip().lower()
+                    for m in messages
+                )
+                if has_previous_default:
+                    log.info(
+                        "Skipping fallback send for %s: DEFAULT_REPLY already sent in recent history. Handing over to human admin.",
+                        conv.buyer_name,
+                    )
+                    bot_state.replied_cache[conv_hash] = time.time()
+                    bot_state.replied_cache[prelim_hash] = time.time()
+                    continue
+
             # Double check before sending: re-parse last message
             recent_msgs = await parse_chat_messages(page)
             while recent_msgs and recent_msgs[-1].direction == "auto_reply":

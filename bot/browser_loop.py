@@ -49,6 +49,18 @@ def cleanup_expired_cache():
         log.info("Cleaned up %d expired cache items", len(expired_keys))
 
 
+def cleanup_chromium_locks(profile_dir: str):
+    """Remove stale Chromium lock files left over from unexpected process termination."""
+    for lock_name in ["SingletonLock", "SingletonSocket", "SingletonCookie"]:
+        lock_path = os.path.join(profile_dir, lock_name)
+        if os.path.exists(lock_path) or os.path.islink(lock_path):
+            try:
+                os.unlink(lock_path)
+                log.info("Cleaned up stale Chromium lock file: %s", lock_path)
+            except Exception as e:
+                log.warning("Failed to remove Chromium lock file %s: %s", lock_path, e)
+
+
 async def run_browser_loop():
     """Main Playwright loop with lifetime restart and error recovery."""
     load_knowledge_base()
@@ -59,6 +71,7 @@ async def run_browser_loop():
         start_time = time.time()
         os.makedirs(PROFILE_DIR, exist_ok=True)
         os.makedirs(LOG_DIR, exist_ok=True)
+        cleanup_chromium_locks(PROFILE_DIR)
 
         async with async_playwright() as p:
             try:

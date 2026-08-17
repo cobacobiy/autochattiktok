@@ -55,6 +55,10 @@ This application provides intelligent automated responses for Ginee Chat (`chat.
      ```
    - Pushing code with failing unit tests is **STRICTLY PROHIBITED**.
 
+10. **Frontend Modularization & File Editing Policy**:
+    - **No Monolithic HTML**: Do NOT bundle HTML, CSS, and JavaScript together inside a single monolithic `index.html` file. Always modularize web assets into separate files (`index.html`, `style.css`, and `app.js`).
+    - **No Python One-Liner Overwriting**: NEVER use inline Python script commands in terminal (`python3 -c 'html_content = ...'`) to write or replace HTML/code files. Always edit files directly using proper file writing/editing tools.
+
 ## Verification & Testing Workflows
 - **Run Unit Tests (MANDATORY BEFORE PUSH)**:
   Before committing or pushing changes, execute the test suite:
